@@ -1,0 +1,53 @@
+// Общие классы
+.content
+    width: 100%
+    max-width: 1200px
+    margin: 0 auto
+    padding: 0 16px
+
+.center
+    display: flex
+    align-items: center
+    justify-content: center
+
+.shadow
+    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2)
+
+.btn
+    min-height: 44px
+    padding: 0 20px
+    border: none
+    border-radius: 8px
+    font-weight: 600
+    color: var(--btn-text-color)
+    background: var(--accent-color)
+    &:disabled
+        background: var(--disabled-color)
+        box-shadow: none
+        cursor: default
+
+.secondary
+    color: var(--main-color)
+    background: var(--secondary-color)
+
+// иконки
+.mask-icon
+    display: block
+    width: 18px
+    height: 18px
+    background-color: currentColor
+    mask-repeat: no-repeat
+    mask-position: center
+    mask-size: contain
+
+.close-icon
+    mask-image: url('@/assets/images/icons/close.svg')
+
+.undo-icon
+    mask-image: url('@/assets/images/icons/undo.svg')
+
+.plus-icon
+    mask-image: url('@/assets/images/icons/plus.svg')
+
+.minus-icon
+    mask-image: url('@/assets/images/icons/minus.svg')

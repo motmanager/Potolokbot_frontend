@@ -1,0 +1,59 @@
+*, *::before, *::after
+    box-sizing: border-box
+
+body
+    min-height: 100vh
+    scroll-behavior: smooth
+    text-rendering: optimizeSpeed
+
+img
+    display: block
+    max-width: 100%
+
+body, h1, h2, h3, h4, h5, h6, p
+    margin: 0
+    padding: 0
+
+button
+    cursor: pointer
+    background: inherit
+    font-family: inherit
+    font-size: inherit
+    font-weight: inherit
+
+button:focus, select:focus, textarea:focus, input:focus
+    outline: none
+button:focus-visible, select:focus-visible, textarea:focus-visible
+    outline: 2px solid var(--main-color)
+    outline-offset: 2px
+
+ul
+    padding: 0
+    margin: 0
+
+li
+    list-style-type: none
+    padding: 0
+    margin: 0
+
+a
+    color: inherit
+    text-decoration: none
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button
+    -webkit-appearance: none
+
+input[type="number"]
+    -moz-appearance: textfield
+
+input, select, textarea
+    border: none
+    resize: none
+    font-family: inherit
+    font-size: inherit
+body, #app
+    overflow-x: hidden
+
+button, a
+    color: inherit
