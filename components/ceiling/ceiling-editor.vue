@@ -3,6 +3,7 @@
     <header class="top center">
       <button class="icon center" @click="close"><span class="mask-icon close-icon"></span></button>
       <h2 class="title">Схема комнаты</h2>
+      <button class="icon help center" @click="hintsOpen = true">?</button>
     </header>
 
     <p class="status shadow">{{ statusText }}</p>
@@ -67,6 +68,8 @@
       <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
       <button class="btn done center shadow" :disabled="!ceiling.closed || errors.length > 0" @click="finish">Готово</button>
     </footer>
+
+    <ceiling-hints v-if="hintsOpen" @close="closeHints" />
   </div>
 </template>
 
@@ -74,6 +77,8 @@
 import { roomDiagonals, edgeId } from '~/ceiling/geometry'
 
 // ====== Определение данных ======
+const HINTS_KEY = 'ceiling-hints-seen'
+
 const emit = defineEmits(['close'])
 
 const draft = useCeilingDraft()
@@ -82,6 +87,7 @@ const { ceiling, errors, summary, canUndo } = draft
 const stage = ref(null)
 const selected = ref('')
 const diagonalsOpen = ref(false)
+const hintsOpen = ref(false)
 const inputError = ref('')
 const closeError = ref('')
 const opened = ceiling.value
@@ -194,6 +200,16 @@ function close() {
   emit('close')
 }
 
+// подсказки показываем при первом открытии
+function closeHints() {
+  hintsOpen.value = false
+  try {
+    localStorage.setItem(HINTS_KEY, '1')
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 function finish() {
   draft.drawn.value = true
   emit('close')
@@ -202,6 +218,12 @@ function finish() {
 // ====== Запрет прокрутки страницы под редактором ======
 onMounted(() => {
   document.body.style.overflow = 'hidden'
+  try {
+    hintsOpen.value = !localStorage.getItem(HINTS_KEY)
+  } catch (error) {
+    hintsOpen.value = true
+  }
+  console.log('hints', hintsOpen.value)
 })
 
 onBeforeUnmount(() => {
@@ -233,6 +255,11 @@ onBeforeUnmount(() => {
             left: 8px
             color: inherit
             background: none
+        .help
+            right: 8px
+            left: auto
+            font-size: 1.125rem
+            font-weight: 600
     .title
         font-size: 1.125rem
         color: inherit

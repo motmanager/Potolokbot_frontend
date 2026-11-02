@@ -47,13 +47,13 @@ function align(points, corners) {
 export function solve(ceiling) {
   const { corners, walls, diagonals } = ceiling
   const index = new Map(corners.map((corner, i) => [corner.id, i]))
-  const edges = [...walls, ...diagonals].map((edge) => ({
-    from: index.get(edge.from),
-    to: index.get(edge.to),
-    length: edge.length
-  }))
+  const toEdge = (edge) => ({ from: index.get(edge.from), to: index.get(edge.to), length: edge.length })
+  const all = [...walls, ...diagonals].map(toEdge)
+  // если не сошлось, невведённые стены могут изменить длину
+  const entered = [...walls.filter((wall) => wall.fixed), ...diagonals].map(toEdge)
 
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < ATTEMPTS * 2; attempt++) {
+    const edges = attempt < ATTEMPTS ? all : entered
     // следующая попытка с небольшим сдвигом: помогает, когда углы на одной прямой
     const points = corners.map((corner, i) => ({
       x: corner.x + attempt * Math.sin(i + 1),

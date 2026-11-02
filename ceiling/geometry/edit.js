@@ -1,4 +1,3 @@
-import { calcDistance } from '../../utils/calcDistance.js'
 import { GRID_STEP, MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
 import { solve } from './solve.js'
 import { validate } from './validate.js'
@@ -78,9 +77,9 @@ export function moveCorner(ceiling, cornerId, point) {
 }
 
 // ====== Изменение длины стены ======
-// сдвигаем часть контура, разницу забирает параллельная стена, которую ещё не вводили
+// остальные размеры сохраняем, меняются только углы
 export function setWallLength(ceiling, wallId, length) {
-  const { corners, walls, diagonals } = ceiling
+  const { walls } = ceiling
   const index = walls.findIndex((wall) => edgeId(wall) === wallId)
   const wall = walls[index]
   const name = `${wall.from}${wall.to}`
@@ -89,45 +88,7 @@ export function setWallLength(ceiling, wallId, length) {
     return { ceiling, error: `Стена ${name}: укажите размер от ${MIN_LENGTH} до ${MAX_LENGTH} см` }
   }
 
-  const n = corners.length
-  const a = corners[index]
-  const b = corners[(index + 1) % n]
-  const old = calcDistance(a, b)
   const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length, fixed: true } : item)) }
-  // сдвиг конца стены
-  const dx = (b.x - a.x) / old * (length - old)
-  const dy = (b.y - a.y) / old * (length - old)
-
-  // ищем параллельную стену, k - сколько углов сдвигаем
-  for (let k = 1; k < n; k++) {
-    if (walls[(index + k) % n].fixed) continue
-    const from = corners[(index + k) % n]
-    const to = corners[(index + k + 1) % n]
-    // проверка на параллельность
-    const parallel = Math.abs((to.x - from.x) * (b.y - a.y) - (to.y - from.y) * (b.x - a.x)) < 1e-6
-    if (!parallel) continue
-
-    // сдвигаем углы
-    const moved = new Set()
-    for (let m = 1; m <= k; m++) moved.add(corners[(index + m) % n].id)
-    console.log('moved', k, moved)
-    // сдвиг изменил бы введённую диагональ
-    if (diagonals.some((diagonal) => moved.has(diagonal.from) !== moved.has(diagonal.to))) continue
-    const shifted = corners.map((corner) =>
-      moved.has(corner.id) ? { ...corner, x: corner.x + dx, y: corner.y + dy } : corner)
-
-    const newFrom = shifted[(index + k) % n]
-    const newTo = shifted[(index + k + 1) % n]
-    // стена не должна вывернуться или стать слишком короткой
-    const sameDirection = (newTo.x - newFrom.x) * (to.x - from.x) + (newTo.y - newFrom.y) * (to.y - from.y) > 0
-    if (!sameDirection || calcDistance(newFrom, newTo) < MIN_LENGTH) continue
-
-    // проверка на пересечения
-    const candidate = { ...updated, corners: shifted, walls: buildWalls(shifted, updated.walls) }
-    if (!validate(candidate).length) return { ceiling: candidate, error: '' }
-  }
-
-  // свободной параллельной стены нет, перестраиваем по размерам
   const solved = solve(updated)
   console.log('fixed', updated.walls.filter((item) => item.fixed))
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
