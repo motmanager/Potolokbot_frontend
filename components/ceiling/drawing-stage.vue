@@ -44,7 +44,13 @@
         </template>
 
         <template v-for="(corner, i) in cornerItems" :key="corner.id">
-          <v-circle :config="corner.circle" @pointerclick="onCornerClick($event, i)" />
+          <v-circle
+            :config="corner.circle"
+            @pointerclick="onCornerClick($event, i)"
+            @dragstart="emit('move-start')"
+            @dragmove="onCornerDrag($event, i)"
+            @dragend="onCornerDragEnd($event, i)"
+          />
           <v-text :config="corner.text" />
         </template>
       </v-layer>
@@ -60,9 +66,10 @@ import { GRID_STEP, edgeId, snapToGrid } from '~/ceiling/geometry'
 const props = defineProps({
   ceiling: { type: Object, required: true },
   selected: { type: String, default: '' },
-  diagonals: { type: Array, default: () => [] }
+  diagonals: { type: Array, default: () => [] },
+  errorWalls: { type: Array, default: () => [] }
 })
-const emit = defineEmits(['place', 'close', 'select'])
+const emit = defineEmits(['place', 'close', 'select', 'move-start', 'move', 'move-end'])
 
 // подключение konva
 const { vueApp } = useNuxtApp()
@@ -75,6 +82,7 @@ const COLORS = {
   fill: css.getPropertyValue('--secondary-color'),
   wall: css.getPropertyValue('--main-color'),
   selected: css.getPropertyValue('--accent-color'),
+  error: css.getPropertyValue('--error-color'),
   preview: css.getPropertyValue('--disabled-color'),
   corner: css.getPropertyValue('--accent-color'),
   label: css.getPropertyValue('--card-color')
@@ -142,7 +150,8 @@ const fillConfig = computed(() => ({
 }))
 
 function edgeColor(id) {
-  return id === props.selected ? COLORS.selected : COLORS.wall
+  if (id === props.selected) return COLORS.selected
+  return props.errorWalls.includes(id) ? COLORS.error : COLORS.wall
 }
 
 // точка угла на холсте
@@ -219,7 +228,7 @@ const previewConfig = computed(() => {
   const { corners } = props.ceiling
   if (!hover.value || !corners.length) return null
   const last = points.value[points.value.length - 1]
-  const next = snapToGrid(hover.value, corners[corners.length - 1])
+  const next = snapToGrid(hover.value)
   return {
     points: [last.x, last.y, next.x * view.value.scale, next.y * view.value.scale],
     stroke: COLORS.preview,
@@ -243,7 +252,9 @@ const cornerItems = computed(() => props.ceiling.corners.map((corner, i) => {
       strokeWidth: 2.5,
       // чтобы попасть пальцем, на готовом чертеже меньше, чтобы не мешать стенам
       hitStrokeWidth: props.ceiling.closed ? 20 : 40,
-      listening: i === 0 || props.ceiling.closed
+      listening: i === 0 || props.ceiling.closed,
+      draggable: props.ceiling.closed,
+      dragDistance: 12
     },
     text: {
       x: x + 10,
@@ -316,7 +327,7 @@ function onStageClick(event) {
   }
   const position = pointerPosition()
   const { corners } = props.ceiling
-  const place = snapToGrid(position, corners[corners.length - 1])
+  const place = snapToGrid(position)
   // точка попала на первый угол - замыкаем контур
   if (corners.length && place.x === corners[0].x && place.y === corners[0].y) {
     emit('close')
@@ -330,6 +341,19 @@ function onCornerClick(event, index) {
   event.cancelBubble = true
   if (props.ceiling.closed) emit('select', props.ceiling.corners[index].id)
   else if (index === 0) emit('close')
+}
+
+// угол ходит по сетке
+function onCornerDrag(event, index) {
+  const place = snapToGrid(pointerPosition())
+  console.log(place)
+  emit('move', props.ceiling.corners[index].id, place)
+  event.target.position({ x: place.x * view.value.scale, y: place.y * view.value.scale })
+}
+
+function onCornerDragEnd(event, index) {
+  emit('move-end')
+  nextTick(() => event.target.position(points.value[index]))
 }
 
 function onDrag(event) {

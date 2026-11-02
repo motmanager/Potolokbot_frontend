@@ -39,9 +39,13 @@
         :ceiling="ceiling"
         :selected="selected"
         :diagonals="visibleDiagonals"
+        :error-walls="errorWalls"
         @place="onPlace"
         @close="onClose"
         @select="selectEdge"
+        @move-start="onMoveStart"
+        @move="draft.moveCorner"
+        @move-end="onMoveEnd"
       />
       <button v-if="selectedWall" class="btn secondary action center shadow" @click="addCorner">Добавить угол</button>
       <button v-else-if="selectedCorner" class="btn secondary action center shadow" @click="removeCorner">Удалить угол</button>
@@ -86,6 +90,7 @@ const opened = ceiling.value
 const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
 const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) => diagonalsOpen.value || diagonal.entered))
 
+const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
 const selectedWall = computed(() => ceiling.value.walls.some((item) => edgeId(item) === selected.value))
 const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))
 
@@ -109,7 +114,7 @@ const diagonalsText = computed(() => {
 const statusText = computed(() => {
   const { closed, corners } = ceiling.value
   if (closed) {
-    return `Площадь ${formatNumber(summary.value.area)} м². Периметр ${formatNumber(summary.value.perimeter)} м. Нажмите на стену или угол, чтобы изменить`
+    return `Площадь ${formatNumber(summary.value.area)} м². Периметр ${formatNumber(summary.value.perimeter)} м. Нажмите на стену или угол. Угол можно перетащить`
   }
   if (!corners.length) return 'Нажимайте на пересечения сетки, чтобы отметить углы комнаты'
   if (corners.length < 4) return 'Отметьте ещё углы. Комнате нужно минимум четыре'
@@ -145,6 +150,16 @@ function onClose() {
   closeError.value = draft.close()
   console.log('close error', closeError.value)
   if (!closeError.value) nextTick(() => stage.value.fit())
+}
+
+function onMoveStart() {
+  selectEdge('')
+  draft.startMove()
+}
+
+function onMoveEnd() {
+  draft.endMove()
+  nextTick(() => stage.value.fit())
 }
 
 function addCorner() {

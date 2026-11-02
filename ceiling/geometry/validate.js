@@ -1,4 +1,5 @@
 import { orient, segmentsIntersect } from '../../utils/segmentsIntersect.js'
+import { edgeId } from './measure.js'
 
 // проверка контура
 export function validate(ceiling) {
@@ -6,7 +7,10 @@ export function validate(ceiling) {
   const { corners, walls } = ceiling
   const n = corners.length
   const errors = []
-  const add = (a, b) => errors.push({ message: `Стены пересекаются: ${a.from}${a.to} и ${b.from}${b.to}` })
+  const add = (a, b) => errors.push({
+    message: `Стены пересекаются: ${a.from}${a.to} и ${b.from}${b.to}`,
+    walls: [edgeId(a), edgeId(b)]
+  })
 
   for (let i = 0; i < n; i++) {
     // несоседние стены

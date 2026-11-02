@@ -6,6 +6,7 @@ export function useCeilingDraft() {
   const drawn = useState('ceiling-drawn', () => false)
   const initial = useState('ceiling-initial', () => null)
   const past = useState('ceiling-past', () => [])
+  let beforeMove = null
 
   // ====== Ошибки и расчёты ======
   const errors = computed(() => (ceiling.value ? geometry.validate(ceiling.value) : []))
@@ -60,6 +61,20 @@ export function useCeilingDraft() {
     return result.error
   }
 
+  // перетаскивание: в истории одна запись на всё движение
+  function startMove() {
+    beforeMove = ceiling.value
+  }
+
+  function moveCorner(cornerId, point) {
+    ceiling.value = geometry.moveCorner(ceiling.value, cornerId, point)
+  }
+
+  function endMove() {
+    console.log('here', ceiling.value.corners)
+    if (ceiling.value !== beforeMove) past.value = [...past.value, beforeMove]
+  }
+
   function setWallLength(wallId, length) {
     const result = geometry.setWallLength(ceiling.value, wallId, length)
     console.log(result)
@@ -103,6 +118,9 @@ export function useCeilingDraft() {
     close,
     addCorner,
     removeCorner,
+    startMove,
+    moveCorner,
+    endMove,
     setWallLength,
     setDiagonal,
     undo,

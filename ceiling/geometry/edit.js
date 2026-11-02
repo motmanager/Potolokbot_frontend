@@ -7,18 +7,13 @@ import { validate } from './validate.js'
 const toGrid = (value) => Math.round(value / GRID_STEP) * GRID_STEP
 
 // точка на пересечении сетки
-export function snapToGrid(point, previous) {
-  if (!previous) return { x: toGrid(point.x), y: toGrid(point.y) }
-  // стена по горизонтали или вертикали
-  if (Math.abs(point.x - previous.x) >= Math.abs(point.y - previous.y)) {
-    return { x: toGrid(point.x), y: previous.y }
-  }
-  return { x: previous.x, y: toGrid(point.y) }
+export function snapToGrid(point) {
+  return { x: toGrid(point.x), y: toGrid(point.y) }
 }
 
 export function addPoint(ceiling, point) {
   const { corners } = ceiling
-  const place = snapToGrid(point, corners[corners.length - 1])
+  const place = snapToGrid(point)
   if (corners.some((corner) => corner.x === place.x && corner.y === place.y)) return ceiling
   const id = String.fromCharCode(65 + corners.length)
   return { ...ceiling, corners: [...corners, { id, ...place }] }
@@ -27,12 +22,6 @@ export function addPoint(ceiling, point) {
 export function closeContour(ceiling) {
   const { corners } = ceiling
   if (corners.length < 4) return { ceiling, error: 'Отметьте ещё углы. Комнате нужно минимум четыре' }
-  const first = corners[0]
-  const last = corners[corners.length - 1]
-  // последний угол на одной линии с первым
-  if (first.x !== last.x && first.y !== last.y) {
-    return { ceiling, error: `Угол ${last.id} должен быть на одной линии с точкой ${first.id}` }
-  }
   return { ceiling: { ...ceiling, walls: buildWalls(corners), closed: true }, error: '' }
 }
 
@@ -69,6 +58,21 @@ export function removeCorner(ceiling, cornerId) {
   console.log('diagonals', diagonals)
   if (validate(updated).length) return { ceiling, error: `Угол ${cornerId} нельзя удалить: стены пересекутся` }
   return { ceiling: updated, error: '' }
+}
+
+// перетаскивание, диагонали этого угла больше не верны
+export function moveCorner(ceiling, cornerId, point) {
+  const place = snapToGrid(point)
+  const { corners, diagonals } = ceiling
+  if (corners.some((corner) => corner.x === place.x && corner.y === place.y)) return ceiling
+  const next = corners.map((corner) => (corner.id === cornerId ? { ...corner, ...place } : corner))
+  console.log('moveCorner', cornerId, place)
+  return {
+    ...ceiling,
+    corners: next,
+    walls: buildWalls(next),
+    diagonals: diagonals.filter((diagonal) => diagonal.from !== cornerId && diagonal.to !== cornerId)
+  }
 }
 
 // ====== Изменение длины стены ======
