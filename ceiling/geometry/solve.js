@@ -44,7 +44,7 @@ function align(points, corners) {
 
 // ====== Построение по размерам ======
 // углы по длинам стен и диагоналей, null - если размеры не сходятся
-export function solve(ceiling) {
+export function solve(ceiling, canStretch = false) {
   const { corners, walls, diagonals } = ceiling
   const index = new Map(corners.map((corner, i) => [corner.id, i]))
   const toEdge = (edge) => ({ from: index.get(edge.from), to: index.get(edge.to), length: edge.length })
@@ -52,7 +52,7 @@ export function solve(ceiling) {
   // если не сошлось, невведённые стены могут изменить длину
   const entered = [...walls.filter((wall) => wall.fixed), ...diagonals].map(toEdge)
 
-  for (let attempt = 0; attempt < ATTEMPTS * 2; attempt++) {
+  for (let attempt = 0; attempt < (canStretch ? ATTEMPTS * 2 : ATTEMPTS); attempt++) {
     const edges = attempt < ATTEMPTS ? all : entered
     // следующая попытка с небольшим сдвигом: помогает, когда углы на одной прямой
     const points = corners.map((corner, i) => ({

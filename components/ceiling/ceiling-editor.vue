@@ -7,6 +7,7 @@
     </header>
 
     <p class="status shadow">{{ statusText }}</p>
+    <p v-if="missingDiagonals" class="warning shadow">Расчёт приблизительный: не введены диагонали</p>
     <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
     <p v-for="error in errors" :key="error.message" class="problem shadow">{{ error.message }}</p>
 
@@ -82,7 +83,7 @@ const HINTS_KEY = 'ceiling-hints-seen'
 const emit = defineEmits(['close'])
 
 const draft = useCeilingDraft()
-const { ceiling, errors, summary, canUndo } = draft
+const { ceiling, errors, summary, missingDiagonals, canUndo } = draft
 
 const stage = ref(null)
 const selected = ref('')
@@ -111,9 +112,8 @@ const edge = computed(() => {
 
 // форме с n углами нужно n - 3 диагонали
 const diagonalsText = computed(() => {
-  const missing = ceiling.value.corners.length - 3 - ceiling.value.diagonals.length
-  if (missing <= 0) return 'Нажмите на диагональ, чтобы изменить замер'
-  return `Нажмите на диагональ, чтобы ввести замер. Для точной формы осталось ввести: ${missing}`
+  if (!missingDiagonals.value) return 'Нажмите на диагональ, чтобы изменить замер'
+  return `Нажмите на диагональ, чтобы ввести замер. Для точной формы осталось ввести: ${missingDiagonals.value}`
 })
 
 // текст подсказки
@@ -171,7 +171,12 @@ function onMoveEnd() {
 function addCorner() {
   const wallId = selected.value
   console.log('value', wallId)
-  runAndFit(() => draft.addCorner(wallId))
+  const error = draft.addCorner(wallId)
+  if (error) {
+    closeError.value = error
+    return
+  }
+  runAndFit(() => {})
 }
 
 function removeCorner() {
@@ -273,12 +278,14 @@ onBeforeUnmount(() => {
         &:disabled
             color: var(--border-color)
             box-shadow: none
-    .status, .problem, .diagonals, .canvas
+    .status, .warning, .problem, .diagonals, .canvas
         margin: 0 8px
         border-radius: 8px
         background: var(--card-color)
-    .status, .problem
+    .status, .warning, .problem
         padding: 8px 12px
+    .warning
+        color: var(--main-color)
     .problem
         color: var(--error-color)
     .diagonals
@@ -336,7 +343,7 @@ onBeforeUnmount(() => {
         .status
             min-height: 84px
         &.editing
-            .zoom, .toggle
+            .zoom, .toggle, .warning
                 display: none
 
 // открытая клавиатура

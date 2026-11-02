@@ -27,6 +27,7 @@
             <polygon class="outline" :points="outline" vector-effect="non-scaling-stroke"></polygon>
           </svg>
           <p class="result">Площадь {{ formatNumber(summary.area) }} м². Периметр {{ formatNumber(summary.perimeter) }} м</p>
+          <p v-if="missingDiagonals" class="note">Расчёт приблизительный: не введены диагонали</p>
           <div class="buttons">
             <button class="btn center shadow" @click="editorOpen = true">Изменить чертёж</button>
             <button class="btn secondary center shadow" @click="clearScheme">Сбросить</button>
@@ -47,7 +48,7 @@ const DEFAULT_LENGTH = 400
 const DEFAULT_WIDTH = 300
 
 const draft = useCeilingDraft()
-const { ceiling, drawn, summary } = draft
+const { ceiling, drawn, summary, missingDiagonals } = draft
 
 const length = ref('')
 const width = ref('')

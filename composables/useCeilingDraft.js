@@ -18,6 +18,12 @@ export function useCeilingDraft() {
     }
   })
 
+  // форме с n углами нужно n - 3 диагонали, иначе расчёт приблизительный
+  const missingDiagonals = computed(() => {
+    if (!ceiling.value?.closed) return 0
+    return Math.max(ceiling.value.corners.length - 3 - ceiling.value.diagonals.length, 0)
+  })
+
   // ====== История изменений ======
   function begin(next) {
     ceiling.value = next
@@ -51,7 +57,9 @@ export function useCeilingDraft() {
   }
 
   function addCorner(wallId) {
-    commit(geometry.addCorner(ceiling.value, wallId))
+    const result = geometry.addCorner(ceiling.value, wallId)
+    commit(result.ceiling)
+    return result.error
   }
 
   function removeCorner(cornerId) {
@@ -111,6 +119,7 @@ export function useCeilingDraft() {
     drawn,
     errors,
     summary,
+    missingDiagonals,
     canUndo: computed(() => past.value.length > 0),
     start,
     startEmpty,

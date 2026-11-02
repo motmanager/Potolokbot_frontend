@@ -1,5 +1,9 @@
 import { orient, segmentsIntersect } from '../../utils/segmentsIntersect.js'
-import { edgeId } from './measure.js'
+import { calcDistance } from '../../utils/calcDistance.js'
+import { MIN_LENGTH, edgeId } from './measure.js'
+
+// запас на погрешность подбора углов
+const TOLERANCE = 0.01
 
 // проверка контура
 export function validate(ceiling) {
@@ -13,6 +17,12 @@ export function validate(ceiling) {
   })
 
   for (let i = 0; i < n; i++) {
+    if (calcDistance(corners[i], corners[(i + 1) % n]) < MIN_LENGTH - TOLERANCE) {
+      errors.push({
+        message: `Стена ${walls[i].from}${walls[i].to} короче ${MIN_LENGTH} см`,
+        walls: [edgeId(walls[i])]
+      })
+    }
     // несоседние стены
     for (let j = i + 2; j < n; j++) {
       // первая и последняя стены соседние

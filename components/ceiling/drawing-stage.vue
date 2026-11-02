@@ -9,6 +9,8 @@
       @mousemove="onHover"
       @mouseleave="hover = null"
       @wheel="onWheel"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
     >
       <v-layer>
         <v-shape :config="gridConfig" />
@@ -98,6 +100,7 @@ const size = ref({ width: 0, height: 0 })
 const view = ref({ scale: START_SCALE, x: 0, y: 0 })
 const hover = ref(null)
 let observer = null
+let pinch = null
 
 // ====== Настройки чертежа ======
 const points = computed(() => props.ceiling.corners.map((corner) => ({
@@ -320,6 +323,8 @@ function pointerPosition() {
 
 function onStageClick(event) {
   console.log(event.target)
+  // пальцы после масштабирования не ставят точку
+  if (pinch) return
   // нажатие мимо стен снимает выделение
   if (props.ceiling.closed) {
     if (event.target === event.target.getStage()) emit('select', '')
@@ -369,6 +374,30 @@ function onHover() {
 function onWheel(event) {
   event.evt.preventDefault()
   zoomAt(event.target.getStage().getPointerPosition(), event.evt.deltaY < 0 ? 1.1 : 1 / 1.1)
+}
+
+// масштаб двумя пальцами
+function onTouchStart(event) {
+  if (event.evt.touches.length === 1) pinch = null
+}
+
+function onTouchMove(event) {
+  const { touches } = event.evt
+  if (touches.length !== 2) return
+  const stage = stageRef.value.getNode()
+  stage.stopDrag()
+  const box = root.value.getBoundingClientRect()
+  const center = {
+    x: (touches[0].clientX + touches[1].clientX) / 2 - box.left,
+    y: (touches[0].clientY + touches[1].clientY) / 2 - box.top
+  }
+  const distance = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
+  if (pinch) {
+    view.value = { ...view.value, x: view.value.x + center.x - pinch.center.x, y: view.value.y + center.y - pinch.center.y }
+    zoomAt(center, distance / pinch.distance)
+  }
+  pinch = { center, distance }
+  console.log('pinch', pinch)
 }
 
 // ====== Размер холста ======

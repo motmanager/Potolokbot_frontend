@@ -1,3 +1,5 @@
+import { formatNumber } from '../../utils/formatNumber.js'
+import { roundLength } from '../../utils/roundLength.js'
 import { GRID_STEP, MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
 import { solve } from './solve.js'
 import { validate } from './validate.js'
@@ -36,12 +38,17 @@ function nextCornerId(corners) {
 export function addCorner(ceiling, wallId) {
   const { corners, walls } = ceiling
   const index = walls.findIndex((wall) => edgeId(wall) === wallId)
+  const wall = walls[index]
+  // после деления обе части должны быть не короче минимума
+  if (wall.length < MIN_LENGTH * 2) {
+    return { ceiling, error: `Стена ${wall.from}${wall.to} короткая, угол не поместится. Нужно от ${MIN_LENGTH * 2} см` }
+  }
   const a = corners[index]
   const b = corners[(index + 1) % corners.length]
   const corner = { id: nextCornerId(corners), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
   console.log(corner)
   const next = [...corners.slice(0, index + 1), corner, ...corners.slice(index + 1)]
-  return { ...ceiling, corners: next, walls: buildWalls(next, walls) }
+  return { ceiling: { ...ceiling, corners: next, walls: buildWalls(next, walls) }, error: '' }
 }
 
 export function removeCorner(ceiling, cornerId) {
@@ -89,13 +96,24 @@ export function setWallLength(ceiling, wallId, length) {
   }
 
   const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length, fixed: true } : item)) }
-  const solved = solve(updated)
+  const solved = solve(updated, true)
   console.log('fixed', updated.walls.filter((item) => item.fixed))
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
   return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
 }
 
 // ====== Ввод диагонали ======
+// стены с более короткой стороны диагонали: длиннее их суммы она быть не может
+function shorterSide(ceiling, from, to) {
+  const { walls } = ceiling
+  const start = walls.findIndex((wall) => wall.from === from)
+  const ordered = [...walls.slice(start), ...walls.slice(0, start)]
+  const middle = ordered.findIndex((wall) => wall.to === to) + 1
+  const sides = [ordered.slice(0, middle), ordered.slice(middle)]
+  const sum = (side) => side.reduce((total, wall) => total + wall.length, 0)
+  return sum(sides[0]) < sum(sides[1]) ? sides[0] : sides[1]
+}
+
 export function setDiagonal(ceiling, from, to, length) {
   const name = `${from}${to}`
   if (isNaN(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
@@ -107,5 +125,12 @@ export function setDiagonal(ceiling, from, to, length) {
   console.log('here', updated.diagonals)
   const solved = solve(updated)
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
-  return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
+  const side = shorterSide(ceiling, from, to)
+  const limit = side.reduce((total, wall) => total + wall.length, 0)
+  console.log('limit', limit)
+  if (length >= limit) {
+    const names = side.map((wall) => `${wall.from}${wall.to}`).join(', ')
+    return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${formatNumber(length)} см: стены ${names} вместе ${formatNumber(roundLength(limit))} см` }
+  }
+  return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${formatNumber(length)} см: размеры не сходятся` }
 }
