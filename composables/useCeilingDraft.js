@@ -56,6 +56,12 @@ export function useCeilingDraft() {
     return result.error
   }
 
+  function setDiagonal(from, to, length) {
+    const result = geometry.setDiagonal(ceiling.value, from, to, length)
+    commit(result.ceiling)
+    return result.error
+  }
+
   // ====== Другие действия ======
   // Кнопки (отменить, сброс, очистить)
   function undo() {
@@ -85,6 +91,7 @@ export function useCeilingDraft() {
     addPoint,
     close,
     setWallLength,
+    setDiagonal,
     undo,
     reset,
     clear

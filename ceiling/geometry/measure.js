@@ -1,4 +1,6 @@
 import { calcDistance } from '../../utils/calcDistance.js'
+import { isPointInside } from '../../utils/isPointInside.js'
+import { segmentsIntersect } from '../../utils/segmentsIntersect.js'
 
 // размеры в см
 
@@ -20,7 +22,7 @@ export function buildWalls(corners) {
 }
 
 export function createEmpty() {
-  return { id: 'c1', title: 'Потолок 1', corners: [], walls: [], closed: false, options: {} }
+  return { id: 'c1', title: 'Потолок 1', corners: [], walls: [], diagonals: [], closed: false, options: {} }
 }
 
 export function createRectangle(length, width) {
@@ -31,4 +33,50 @@ export function createRectangle(length, width) {
     { id: 'D', x: length, y: 0 }
   ]
   return { ...createEmpty(), corners, walls: buildWalls(corners), closed: true }
+}
+
+// ====== Диагонали ======
+// диагональ идёт внутри комнаты и не задевает стены и другие углы
+function isInnerDiagonal(corners, a, b) {
+  const isEnd = (corner) => corner === a || corner === b
+  for (let i = 0; i < corners.length; i++) {
+    const p = corners[i]
+    const q = corners[(i + 1) % corners.length]
+    if (!isEnd(p) && segmentsIntersect(a, b, p, p)) return false
+    if (!isEnd(p) && !isEnd(q) && segmentsIntersect(a, b, p, q)) return false
+  }
+  return isPointInside({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, corners)
+}
+
+// нужные диагонали: введённые и самые короткие, которые их не пересекают, всего n - 3
+export function roomDiagonals(ceiling) {
+  const { corners, diagonals } = ceiling
+  const position = new Map(corners.map((corner) => [corner.id, corner]))
+  const result = diagonals.map((diagonal) => ({ ...diagonal, entered: true }))
+
+  const crosses = (a, b, diagonal) => {
+    const c = position.get(diagonal.from)
+    const d = position.get(diagonal.to)
+    if (a === c || a === d || b === c || b === d) return false
+    return segmentsIntersect(a, b, c, d)
+  }
+
+  const candidates = []
+  corners.forEach((a, i) => {
+    corners.slice(i + 2).forEach((b) => {
+      // первый и последний углы соединены стеной
+      if (a === corners[0] && b === corners[corners.length - 1]) return
+      candidates.push({ from: a.id, to: b.id, length: calcDistance(a, b), entered: false })
+    })
+  })
+  candidates.sort((x, y) => x.length - y.length)
+
+  for (const candidate of candidates) {
+    const a = position.get(candidate.from)
+    const b = position.get(candidate.to)
+    const taken = result.some((item) => item.from === candidate.from && item.to === candidate.to)
+    if (taken || !isInnerDiagonal(corners, a, b) || result.some((item) => crosses(a, b, item))) continue
+    result.push(candidate)
+  }
+  return result.sort((x, y) => edgeId(x).localeCompare(edgeId(y)))
 }

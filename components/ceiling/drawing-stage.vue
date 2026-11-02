@@ -16,13 +16,19 @@
         <template v-if="ceiling.closed">
           <v-line :config="fillConfig" />
           <v-line
+            v-for="diagonal in diagonalLines"
+            :key="diagonal.id"
+            :config="diagonal.config"
+            @pointerclick="emit('select', diagonal.id)"
+          />
+          <v-line
             v-for="wall in wallLines"
             :key="wall.id"
             :config="wall.config"
             @pointerclick="emit('select', wall.id)"
           />
           <v-group
-            v-for="label in wallLabels"
+            v-for="label in labels"
             :key="label.id"
             :config="label.group"
             @pointerclick="emit('select', label.id)"
@@ -53,7 +59,8 @@ import { GRID_STEP, edgeId, snapToGrid } from '~/ceiling/geometry'
 // ====== Определение констант и данных ======
 const props = defineProps({
   ceiling: { type: Object, required: true },
-  selectedWall: { type: String, default: '' }
+  selected: { type: String, default: '' },
+  diagonals: { type: Array, default: () => [] }
 })
 const emit = defineEmits(['place', 'close', 'select'])
 
@@ -134,8 +141,13 @@ const fillConfig = computed(() => ({
   listening: false
 }))
 
-function wallColor(id) {
-  return id === props.selectedWall ? COLORS.selected : COLORS.wall
+function edgeColor(id) {
+  return id === props.selected ? COLORS.selected : COLORS.wall
+}
+
+// точка угла на холсте
+function pointOf(id) {
+  return points.value[props.ceiling.corners.findIndex((corner) => corner.id === id)]
 }
 
 // стены
@@ -145,19 +157,30 @@ const wallLines = computed(() => props.ceiling.walls.map((wall, i) => {
   const b = points.value[(i + 1) % points.value.length]
   return {
     id,
-    config: { points: [a.x, a.y, b.x, b.y], stroke: wallColor(id), strokeWidth: 2.5, hitStrokeWidth: 24 }
+    config: { points: [a.x, a.y, b.x, b.y], stroke: edgeColor(id), strokeWidth: 2.5, hitStrokeWidth: 24 }
   }
 }))
 
-// длины стен
-const wallLabels = computed(() => props.ceiling.walls.map((wall, i) => {
-  const id = edgeId(wall)
-  const a = points.value[i]
-  const b = points.value[(i + 1) % points.value.length]
-  const text = `${roundLength(wall.length)} см`
+// диагонали: введённые сплошные, рассчитанные пунктиром
+const diagonalLines = computed(() => props.diagonals.map((diagonal) => {
+  const id = edgeId(diagonal)
+  const a = pointOf(diagonal.from)
+  const b = pointOf(diagonal.to)
+  const line = { points: [a.x, a.y, b.x, b.y], hitStrokeWidth: 24 }
+  if (diagonal.entered) return { id, config: { ...line, stroke: edgeColor(id), strokeWidth: 1.5 } }
+  const stroke = id === props.selected ? COLORS.selected : COLORS.preview
+  return { id, config: { ...line, stroke, strokeWidth: 2, dash: [6, 5] } }
+}))
+
+// подпись с длиной
+function edgeLabel(edge) {
+  const id = edgeId(edge)
+  const a = pointOf(edge.from)
+  const b = pointOf(edge.to)
+  const text = `${formatNumber(roundLength(edge.length))} см`
   const width = text.length * 9 + 16
   const height = 26
-  const color = wallColor(id)
+  const color = edgeColor(id)
   return {
     id,
     group: { x: (a.x + b.x) / 2 - width / 2, y: (a.y + b.y) / 2 - height / 2 },
@@ -175,7 +198,13 @@ const wallLabels = computed(() => props.ceiling.walls.map((wall, i) => {
       listening: false
     }
   }
-}))
+}
+
+// подписи стен и введённых диагоналей
+const labels = computed(() => [
+  ...props.diagonals.filter((diagonal) => diagonal.entered),
+  ...props.ceiling.walls
+].map(edgeLabel))
 
 // контур, пока не замкнут
 const contourConfig = computed(() => ({

@@ -1,5 +1,6 @@
 import { calcDistance } from '../../utils/calcDistance.js'
 import { GRID_STEP, MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
+import { solve } from './solve.js'
 import { validate } from './validate.js'
 
 // ====== Построение по точкам ======
@@ -38,7 +39,7 @@ export function closeContour(ceiling) {
 // ====== Изменение длины стены ======
 // сдвигаем часть контура, разницу забирает параллельная стена
 export function setWallLength(ceiling, wallId, length) {
-  const { corners, walls } = ceiling
+  const { corners, walls, diagonals } = ceiling
   const index = walls.findIndex((wall) => edgeId(wall) === wallId)
   const wall = walls[index]
   const name = `${wall.from}${wall.to}`
@@ -67,6 +68,8 @@ export function setWallLength(ceiling, wallId, length) {
     const moved = new Set()
     for (let m = 1; m <= k; m++) moved.add(corners[(index + m) % n].id)
     console.log('moved', k, moved)
+    // сдвиг изменил бы введённую диагональ
+    if (diagonals.some((diagonal) => moved.has(diagonal.from) !== moved.has(diagonal.to))) continue
     const shifted = corners.map((corner) =>
       moved.has(corner.id) ? { ...corner, x: corner.x + dx, y: corner.y + dy } : corner)
 
@@ -80,5 +83,24 @@ export function setWallLength(ceiling, wallId, length) {
     const candidate = { ...ceiling, corners: shifted, walls: buildWalls(shifted) }
     if (!validate(candidate).length) return { ceiling: candidate, error: '' }
   }
-  return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: стены пересекутся` }
+
+  // параллельной стены нет, перестраиваем по размерам
+  const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length } : item)) }
+  const solved = solve(updated)
+  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved) }, error: '' }
+  return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
+}
+
+// ====== Ввод диагонали ======
+export function setDiagonal(ceiling, from, to, length) {
+  const name = `${from}${to}`
+  if (isNaN(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
+    return { ceiling, error: `Диагональ ${name}: укажите размер от ${MIN_LENGTH} до ${MAX_LENGTH} см` }
+  }
+
+  const others = ceiling.diagonals.filter((diagonal) => diagonal.from !== from || diagonal.to !== to)
+  const updated = { ...ceiling, diagonals: [...others, { from, to, length }] }
+  const solved = solve(updated)
+  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved) }, error: '' }
+  return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
 }

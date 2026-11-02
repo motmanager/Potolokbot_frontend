@@ -1,5 +1,5 @@
 <template>
-  <div class="ceiling-editor" :class="{ editing: selectedWall }">
+  <div class="ceiling-editor" :class="{ editing: edge }">
     <header class="top center">
       <button class="icon center" @click="close"><span class="mask-icon close-icon"></span></button>
       <h2 class="title">Схема комнаты</h2>
@@ -10,23 +10,46 @@
     <p v-for="error in errors" :key="error.message" class="problem shadow">{{ error.message }}</p>
 
     <ceiling-wall-input
-      v-if="wall"
-      :title="`Стена ${wall.from}${wall.to}`"
-      :value="wall.length"
+      v-if="edge"
+      :title="edge.title"
+      :value="edge.length"
       :error="inputError"
       @apply="applyLength"
-      @close="selectWall('')"
+      @close="selectEdge('')"
     />
+
+    <div v-else-if="diagonalsOpen && diagonalList.length" class="diagonals shadow">
+      <p class="text">{{ diagonalsText }}</p>
+      <div class="list">
+        <button
+          v-for="diagonal in diagonalList"
+          :key="edgeId(diagonal)"
+          class="item center"
+          :class="{ entered: diagonal.entered }"
+          @click="selectEdge(edgeId(diagonal))"
+        >
+          {{ diagonal.from }}{{ diagonal.to }} {{ formatNumber(roundLength(diagonal.length)) }} см
+        </button>
+      </div>
+    </div>
 
     <div class="canvas shadow">
       <ceiling-drawing-stage
         ref="stage"
         :ceiling="ceiling"
-        :selected-wall="selectedWall"
+        :selected="selected"
+        :diagonals="visibleDiagonals"
         @place="onPlace"
         @close="onClose"
-        @select="selectWall"
+        @select="selectEdge"
       />
+      <button
+        v-if="diagonalList.length"
+        class="btn secondary toggle center shadow"
+        @click="toggleDiagonals"
+      >
+        {{ diagonalsOpen ? 'Скрыть диагонали' : 'Диагонали' }}
+      </button>
       <div class="zoom">
         <button class="icon center shadow" @click="stage.zoom(1.25)"><span class="mask-icon plus-icon"></span></button>
         <button class="icon center shadow" @click="stage.zoom(0.8)"><span class="mask-icon minus-icon"></span></button>
@@ -42,7 +65,7 @@
 </template>
 
 <script setup>
-import { edgeId } from '~/ceiling/geometry'
+import { roomDiagonals, edgeId } from '~/ceiling/geometry'
 
 // ====== Определение данных ======
 const emit = defineEmits(['close'])
@@ -51,13 +74,31 @@ const draft = useCeilingDraft()
 const { ceiling, errors, summary, canUndo } = draft
 
 const stage = ref(null)
-const selectedWall = ref('')
+const selected = ref('')
+const diagonalsOpen = ref(false)
 const inputError = ref('')
 const closeError = ref('')
 const opened = ceiling.value
 
 // ====== Вычисляемые значения ======
-const wall = computed(() => ceiling.value.walls.find((item) => edgeId(item) === selectedWall.value))
+const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
+const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) => diagonalsOpen.value || diagonal.entered))
+
+// выбранная стена или диагональ
+const edge = computed(() => {
+  const wall = ceiling.value.walls.find((item) => edgeId(item) === selected.value)
+  if (wall) return { ...wall, title: `Стена ${wall.from}${wall.to}` }
+  const diagonal = diagonalList.value.find((item) => edgeId(item) === selected.value)
+  if (diagonal) return { ...diagonal, title: `Диагональ ${diagonal.from}${diagonal.to}` }
+  return null
+})
+
+// форме с n углами нужно n - 3 диагонали
+const diagonalsText = computed(() => {
+  const missing = ceiling.value.corners.length - 3 - ceiling.value.diagonals.length
+  if (missing <= 0) return 'Нажмите на диагональ, чтобы изменить замер'
+  return `Нажмите на диагональ, чтобы ввести замер. Для точной формы осталось ввести: ${missing}`
+})
 
 // текст подсказки
 const statusText = computed(() => {
@@ -71,14 +112,19 @@ const statusText = computed(() => {
 })
 
 // ====== Действия на чертеже ======
-function selectWall(id) {
-  selectedWall.value = id
+function selectEdge(id) {
+  selected.value = id
   inputError.value = ''
+}
+
+function toggleDiagonals() {
+  diagonalsOpen.value = !diagonalsOpen.value
+  selectEdge('')
 }
 
 function runAndFit(action) {
   action()
-  selectWall('')
+  selectEdge('')
   closeError.value = ''
   nextTick(() => stage.value.fit())
 }
@@ -97,7 +143,9 @@ function onClose() {
 
 function applyLength(length) {
   console.log('testttt', length)
-  inputError.value = draft.setWallLength(selectedWall.value, length)
+  const { from, to } = edge.value
+  const isDiagonal = diagonalList.value.some((item) => edgeId(item) === selected.value)
+  inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
   if (!inputError.value) runAndFit(() => {})
 }
 
@@ -161,7 +209,7 @@ onBeforeUnmount(() => {
         &:disabled
             color: var(--border-color)
             box-shadow: none
-    .status, .problem, .canvas
+    .status, .problem, .diagonals, .canvas
         margin: 0 8px
         border-radius: 8px
         background: var(--card-color)
@@ -169,6 +217,30 @@ onBeforeUnmount(() => {
         padding: 8px 12px
     .problem
         color: var(--error-color)
+    .diagonals
+        padding: 10px 12px
+        .text
+            margin-bottom: 8px
+        .list
+            display: flex
+            flex-wrap: wrap
+            gap: 8px
+        .item
+            min-height: 40px
+            padding: 0 10px
+            border: 1px solid var(--border-color)
+            border-radius: 8px
+            color: var(--main-color)
+            background: var(--card-color)
+            &.entered
+                font-weight: 600
+                border-color: var(--main-color)
+                background: var(--secondary-color)
+    .toggle
+        position: absolute
+        bottom: 8px
+        left: 8px
+        padding: 0 12px
     .canvas
         position: relative
         flex: 1
@@ -200,7 +272,7 @@ onBeforeUnmount(() => {
         .status
             min-height: 84px
         &.editing
-            .zoom
+            .zoom, .toggle
                 display: none
 
 // открытая клавиатура
