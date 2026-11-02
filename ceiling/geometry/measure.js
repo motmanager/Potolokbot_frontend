@@ -14,10 +14,13 @@ export const edgeId = (edge) => `${edge.from}-${edge.to}`
 
 // ====== Создание чертежа ======
 // стены по углам, последний угол соединяем с первым
-export function buildWalls(corners) {
+// введённые стены из previous остаются как есть
+export function buildWalls(corners, previous = []) {
   return corners.map((corner, i) => {
     const next = corners[(i + 1) % corners.length]
-    return { from: corner.id, to: next.id, length: calcDistance(corner, next) }
+    const known = previous.find((wall) => wall.from === corner.id && wall.to === next.id)
+    if (known && known.fixed) return known
+    return { from: corner.id, to: next.id, length: calcDistance(corner, next), fixed: false }
   })
 }
 

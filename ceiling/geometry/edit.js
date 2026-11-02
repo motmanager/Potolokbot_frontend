@@ -42,13 +42,13 @@ export function addCorner(ceiling, wallId) {
   const corner = { id: nextCornerId(corners), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
   console.log(corner)
   const next = [...corners.slice(0, index + 1), corner, ...corners.slice(index + 1)]
-  return { ...ceiling, corners: next, walls: buildWalls(next) }
+  return { ...ceiling, corners: next, walls: buildWalls(next, walls) }
 }
 
 export function removeCorner(ceiling, cornerId) {
   if (ceiling.corners.length <= 4) return { ceiling, error: 'Комнате нужно минимум четыре угла' }
   const corners = ceiling.corners.filter((corner) => corner.id !== cornerId)
-  const walls = buildWalls(corners)
+  const walls = buildWalls(corners, ceiling.walls)
   // убираем диагонали этого угла и те, что теперь совпали со стеной
   const isWall = (diagonal) => walls.some((wall) =>
     (wall.from === diagonal.from && wall.to === diagonal.to) || (wall.from === diagonal.to && wall.to === diagonal.from))
@@ -63,20 +63,22 @@ export function removeCorner(ceiling, cornerId) {
 // перетаскивание, диагонали этого угла больше не верны
 export function moveCorner(ceiling, cornerId, point) {
   const place = snapToGrid(point)
-  const { corners, diagonals } = ceiling
+  const { corners, walls, diagonals } = ceiling
   if (corners.some((corner) => corner.x === place.x && corner.y === place.y)) return ceiling
   const next = corners.map((corner) => (corner.id === cornerId ? { ...corner, ...place } : corner))
   console.log('moveCorner', cornerId, place)
+  // стены этого угла изменились, их замеры больше не верны
+  const kept = walls.filter((wall) => wall.from !== cornerId && wall.to !== cornerId)
   return {
     ...ceiling,
     corners: next,
-    walls: buildWalls(next),
+    walls: buildWalls(next, kept),
     diagonals: diagonals.filter((diagonal) => diagonal.from !== cornerId && diagonal.to !== cornerId)
   }
 }
 
 // ====== Изменение длины стены ======
-// сдвигаем часть контура, разницу забирает параллельная стена
+// сдвигаем часть контура, разницу забирает параллельная стена, которую ещё не вводили
 export function setWallLength(ceiling, wallId, length) {
   const { corners, walls, diagonals } = ceiling
   const index = walls.findIndex((wall) => edgeId(wall) === wallId)
@@ -91,12 +93,14 @@ export function setWallLength(ceiling, wallId, length) {
   const a = corners[index]
   const b = corners[(index + 1) % n]
   const old = calcDistance(a, b)
+  const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length, fixed: true } : item)) }
   // сдвиг конца стены
   const dx = (b.x - a.x) / old * (length - old)
   const dy = (b.y - a.y) / old * (length - old)
 
   // ищем параллельную стену, k - сколько углов сдвигаем
   for (let k = 1; k < n; k++) {
+    if (walls[(index + k) % n].fixed) continue
     const from = corners[(index + k) % n]
     const to = corners[(index + k + 1) % n]
     // проверка на параллельность
@@ -119,14 +123,14 @@ export function setWallLength(ceiling, wallId, length) {
     if (!sameDirection || calcDistance(newFrom, newTo) < MIN_LENGTH) continue
 
     // проверка на пересечения
-    const candidate = { ...ceiling, corners: shifted, walls: buildWalls(shifted) }
+    const candidate = { ...updated, corners: shifted, walls: buildWalls(shifted, updated.walls) }
     if (!validate(candidate).length) return { ceiling: candidate, error: '' }
   }
 
-  // параллельной стены нет, перестраиваем по размерам
-  const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length } : item)) }
+  // свободной параллельной стены нет, перестраиваем по размерам
   const solved = solve(updated)
-  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved) }, error: '' }
+  console.log('fixed', updated.walls.filter((item) => item.fixed))
+  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
   return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
 }
 
@@ -141,6 +145,6 @@ export function setDiagonal(ceiling, from, to, length) {
   const updated = { ...ceiling, diagonals: [...others, { from, to, length }] }
   console.log('here', updated.diagonals)
   const solved = solve(updated)
-  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved) }, error: '' }
+  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
   return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
 }
