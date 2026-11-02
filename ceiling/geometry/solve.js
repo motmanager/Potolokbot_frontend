@@ -61,6 +61,7 @@ export function solve(ceiling) {
     }))
     if (!relax(points, edges)) continue
     const solved = align(points, corners)
+    console.log('attempt', attempt, solved)
     if (!validate({ ...ceiling, corners: solved }).length) return solved
   }
   return null

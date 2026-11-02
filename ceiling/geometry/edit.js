@@ -36,6 +36,41 @@ export function closeContour(ceiling) {
   return { ceiling: { ...ceiling, walls: buildWalls(corners), closed: true }, error: '' }
 }
 
+// ====== Добавление и удаление углов ======
+// первая свободная буква
+function nextCornerId(corners) {
+  let code = 65
+  while (corners.some((corner) => corner.id === String.fromCharCode(code))) code++
+  return String.fromCharCode(code)
+}
+
+// новый угол на середине стены
+export function addCorner(ceiling, wallId) {
+  const { corners, walls } = ceiling
+  const index = walls.findIndex((wall) => edgeId(wall) === wallId)
+  const a = corners[index]
+  const b = corners[(index + 1) % corners.length]
+  const corner = { id: nextCornerId(corners), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  console.log(corner)
+  const next = [...corners.slice(0, index + 1), corner, ...corners.slice(index + 1)]
+  return { ...ceiling, corners: next, walls: buildWalls(next) }
+}
+
+export function removeCorner(ceiling, cornerId) {
+  if (ceiling.corners.length <= 4) return { ceiling, error: 'Комнате нужно минимум четыре угла' }
+  const corners = ceiling.corners.filter((corner) => corner.id !== cornerId)
+  const walls = buildWalls(corners)
+  // убираем диагонали этого угла и те, что теперь совпали со стеной
+  const isWall = (diagonal) => walls.some((wall) =>
+    (wall.from === diagonal.from && wall.to === diagonal.to) || (wall.from === diagonal.to && wall.to === diagonal.from))
+  const diagonals = ceiling.diagonals.filter((diagonal) =>
+    diagonal.from !== cornerId && diagonal.to !== cornerId && !isWall(diagonal))
+  const updated = { ...ceiling, corners, walls, diagonals }
+  console.log('diagonals', diagonals)
+  if (validate(updated).length) return { ceiling, error: `Угол ${cornerId} нельзя удалить: стены пересекутся` }
+  return { ceiling: updated, error: '' }
+}
+
 // ====== Изменение длины стены ======
 // сдвигаем часть контура, разницу забирает параллельная стена
 export function setWallLength(ceiling, wallId, length) {
@@ -100,6 +135,7 @@ export function setDiagonal(ceiling, from, to, length) {
 
   const others = ceiling.diagonals.filter((diagonal) => diagonal.from !== from || diagonal.to !== to)
   const updated = { ...ceiling, diagonals: [...others, { from, to, length }] }
+  console.log('here', updated.diagonals)
   const solved = solve(updated)
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved) }, error: '' }
   return { ceiling, error: `Диагональ ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }

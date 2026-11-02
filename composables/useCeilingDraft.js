@@ -49,6 +49,17 @@ export function useCeilingDraft() {
     return result.error
   }
 
+  function addCorner(wallId) {
+    commit(geometry.addCorner(ceiling.value, wallId))
+  }
+
+  function removeCorner(cornerId) {
+    const result = geometry.removeCorner(ceiling.value, cornerId)
+    console.log('111111', result.error)
+    commit(result.ceiling)
+    return result.error
+  }
+
   function setWallLength(wallId, length) {
     const result = geometry.setWallLength(ceiling.value, wallId, length)
     console.log(result)
@@ -90,6 +101,8 @@ export function useCeilingDraft() {
     startEmpty,
     addPoint,
     close,
+    addCorner,
+    removeCorner,
     setWallLength,
     setDiagonal,
     undo,

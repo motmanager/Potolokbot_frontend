@@ -43,9 +43,11 @@
         @close="onClose"
         @select="selectEdge"
       />
+      <button v-if="selectedWall" class="btn secondary action center shadow" @click="addCorner">Добавить угол</button>
+      <button v-else-if="selectedCorner" class="btn secondary action center shadow" @click="removeCorner">Удалить угол</button>
       <button
-        v-if="diagonalList.length"
-        class="btn secondary toggle center shadow"
+        v-else-if="diagonalList.length"
+        class="btn secondary action toggle center shadow"
         @click="toggleDiagonals"
       >
         {{ diagonalsOpen ? 'Скрыть диагонали' : 'Диагонали' }}
@@ -84,6 +86,9 @@ const opened = ceiling.value
 const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
 const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) => diagonalsOpen.value || diagonal.entered))
 
+const selectedWall = computed(() => ceiling.value.walls.some((item) => edgeId(item) === selected.value))
+const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))
+
 // выбранная стена или диагональ
 const edge = computed(() => {
   const wall = ceiling.value.walls.find((item) => edgeId(item) === selected.value)
@@ -104,7 +109,7 @@ const diagonalsText = computed(() => {
 const statusText = computed(() => {
   const { closed, corners } = ceiling.value
   if (closed) {
-    return `Площадь ${formatNumber(summary.value.area)} м². Периметр ${formatNumber(summary.value.perimeter)} м. Нажмите на стену, чтобы изменить длину`
+    return `Площадь ${formatNumber(summary.value.area)} м². Периметр ${formatNumber(summary.value.perimeter)} м. Нажмите на стену или угол, чтобы изменить`
   }
   if (!corners.length) return 'Нажимайте на пересечения сетки, чтобы отметить углы комнаты'
   if (corners.length < 4) return 'Отметьте ещё углы. Комнате нужно минимум четыре'
@@ -115,6 +120,7 @@ const statusText = computed(() => {
 function selectEdge(id) {
   selected.value = id
   inputError.value = ''
+  closeError.value = ''
 }
 
 function toggleDiagonals() {
@@ -141,9 +147,25 @@ function onClose() {
   if (!closeError.value) nextTick(() => stage.value.fit())
 }
 
+function addCorner() {
+  const wallId = selected.value
+  console.log('value', wallId)
+  runAndFit(() => draft.addCorner(wallId))
+}
+
+function removeCorner() {
+  const error = draft.removeCorner(selected.value)
+  if (error) {
+    closeError.value = error
+    return
+  }
+  runAndFit(() => {})
+}
+
 function applyLength(length) {
   console.log('testttt', length)
   const { from, to } = edge.value
+  console.log('edge', edge.value)
   const isDiagonal = diagonalList.value.some((item) => edgeId(item) === selected.value)
   inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
   if (!inputError.value) runAndFit(() => {})
@@ -236,7 +258,7 @@ onBeforeUnmount(() => {
                 font-weight: 600
                 border-color: var(--main-color)
                 background: var(--secondary-color)
-    .toggle
+    .action
         position: absolute
         bottom: 8px
         left: 8px

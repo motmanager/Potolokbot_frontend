@@ -237,13 +237,13 @@ const cornerItems = computed(() => props.ceiling.corners.map((corner, i) => {
     circle: {
       x,
       y,
-      radius: 8,
+      radius: corner.id === props.selected ? 11 : 8,
       fill: COLORS.corner,
       stroke: COLORS.wall,
       strokeWidth: 2.5,
-      // чтобы попасть пальцем
-      hitStrokeWidth: 40,
-      listening: i === 0 && !props.ceiling.closed
+      // чтобы попасть пальцем, на готовом чертеже меньше, чтобы не мешать стенам
+      hitStrokeWidth: props.ceiling.closed ? 20 : 40,
+      listening: i === 0 || props.ceiling.closed
     },
     text: {
       x: x + 10,
@@ -326,9 +326,10 @@ function onStageClick(event) {
 }
 
 function onCornerClick(event, index) {
-  if (index !== 0) return
+  console.log('test', index)
   event.cancelBubble = true
-  emit('close')
+  if (props.ceiling.closed) emit('select', props.ceiling.corners[index].id)
+  else if (index === 0) emit('close')
 }
 
 function onDrag(event) {
