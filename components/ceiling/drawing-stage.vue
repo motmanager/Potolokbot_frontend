@@ -4,8 +4,7 @@
       v-if="size.width"
       ref="stageRef"
       :config="stageConfig"
-      @click="onStageClick"
-      @tap="onStageClick"
+      @pointerclick="onStageClick"
       @dragmove="onDrag"
       @mousemove="onHover"
       @mouseleave="hover = null"
@@ -20,15 +19,13 @@
             v-for="wall in wallLines"
             :key="wall.id"
             :config="wall.config"
-            @click="emit('select', wall.id)"
-            @tap="emit('select', wall.id)"
+            @pointerclick="emit('select', wall.id)"
           />
           <v-group
             v-for="label in wallLabels"
             :key="label.id"
             :config="label.group"
-            @click="emit('select', label.id)"
-            @tap="emit('select', label.id)"
+            @pointerclick="emit('select', label.id)"
           >
             <v-rect :config="label.rect" />
             <v-text :config="label.text" />
@@ -41,7 +38,7 @@
         </template>
 
         <template v-for="(corner, i) in cornerItems" :key="corner.id">
-          <v-circle :config="corner.circle" @click="onCornerClick($event, i)" @tap="onCornerClick($event, i)" />
+          <v-circle :config="corner.circle" @pointerclick="onCornerClick($event, i)" />
           <v-text :config="corner.text" />
         </template>
       </v-layer>
@@ -100,7 +97,7 @@ const stageConfig = computed(() => ({
   x: view.value.x,
   y: view.value.y,
   draggable: true,
-  dragDistance: 6
+  dragDistance: 12
 }))
 
 // сетка
@@ -288,7 +285,15 @@ function onStageClick(event) {
     if (event.target === event.target.getStage()) emit('select', '')
     return
   }
-  emit('place', pointerPosition())
+  const position = pointerPosition()
+  const { corners } = props.ceiling
+  const place = snapToGrid(position, corners[corners.length - 1])
+  // точка попала на первый угол - замыкаем контур
+  if (corners.length && place.x === corners[0].x && place.y === corners[0].y) {
+    emit('close')
+    return
+  }
+  emit('place', position)
 }
 
 function onCornerClick(event, index) {
