@@ -320,7 +320,8 @@ onBeforeUnmount(() => {
             font-weight: 600
         .note
             flex: 0 0 100%
-            font-size: 0.875rem
+            font-size: 0.8125rem
+            text-align: left
             color: var(--disabled-color)
     .summary, .status, .problem, .diagonals, .canvas
         margin: 0 8px
@@ -387,6 +388,11 @@ onBeforeUnmount(() => {
         // на готовом чертеже место отдаём холсту, подсказки остаются под «?»
         &.closed .status
             display: none
+        // кнопки на холсте меньше, чтобы не закрывать чертёж
+        .action
+            min-height: 36px
+            padding: 0 10px
+            font-size: 0.875rem
         // при вводе чертёж сверху, поле снизу
         &.editing
             .zoom, .toggle, .summary, .status, .bottom
