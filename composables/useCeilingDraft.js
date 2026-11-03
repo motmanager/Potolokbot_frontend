@@ -21,6 +21,7 @@ export function useCeilingDraft() {
   // форме с n углами нужно n - 3 диагонали, иначе расчёт приблизительный
   const missingDiagonals = computed(() => {
     if (!ceiling.value?.closed) return 0
+    if (ceiling.value.fromSizes && isRectangle(ceiling.value.corners)) return 0
     return Math.max(ceiling.value.corners.length - 3 - ceiling.value.diagonals.length, 0)
   })
 

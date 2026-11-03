@@ -6,29 +6,49 @@
       <button class="icon help center" @click="hintsOpen = true">?</button>
     </header>
 
-    <div class="summary shadow">
-      <p class="item"><span class="name">Площадь</span>{{ ceiling.closed ? formatNumber(summary.area) : 0 }} м²{{ missingDiagonals ? '*' : '' }}</p>
-      <p class="item"><span class="name">Периметр</span>{{ ceiling.closed ? formatNumber(summary.perimeter) : 0 }} м</p>
-      <p class="item"><span class="name">Углы</span>{{ ceiling.corners.length }}</p>
-      <p v-if="missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
-    </div>
-    <p class="status shadow">{{ statusText }}</p>
-    <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
-    <p v-for="error in errors" :key="error.message" class="problem shadow">{{ error.message }}</p>
-
-    <div v-if="!edge && diagonalsOpen && diagonalList.length" class="diagonals shadow">
-      <p class="text">{{ diagonalsText }}</p>
-      <div class="list">
-        <button
-          v-for="diagonal in diagonalList"
-          :key="edgeId(diagonal)"
-          class="item center"
-          :class="{ entered: diagonal.entered }"
-          @click="selectEdge(edgeId(diagonal))"
-        >
-          {{ diagonal.from }}{{ diagonal.to }} {{ formatNumber(roundLength(diagonal.length)) }} см
-        </button>
+    <div class="panel">
+      <div class="summary shadow">
+        <p class="item"><span class="name">Площадь</span>{{ ceiling.closed ? formatNumber(summary.area) : 0 }} м²{{ missingDiagonals ? '*' : '' }}</p>
+        <p class="item"><span class="name">Периметр</span>{{ ceiling.closed ? formatNumber(summary.perimeter) : 0 }} м</p>
+        <p class="item"><span class="name">Углы</span>{{ ceiling.corners.length }}</p>
+        <p v-if="missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
       </div>
+      <p class="status shadow">{{ statusText }}</p>
+      <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
+      <p v-for="error in errors" :key="error.message" class="problem shadow">{{ error.message }}</p>
+
+      <div v-if="!edge && diagonalsOpen && diagonalList.length" class="diagonals shadow">
+        <p class="text">{{ diagonalsText }}</p>
+        <div class="list">
+          <button
+            v-for="diagonal in diagonalList"
+            :key="edgeId(diagonal)"
+            class="item center"
+            :class="{ entered: diagonal.entered }"
+            @click="selectEdge(edgeId(diagonal))"
+          >
+            {{ diagonal.from }}{{ diagonal.to }} {{ formatNumber(roundLength(diagonal.length)) }} см
+          </button>
+        </div>
+      </div>
+
+      <ceiling-wall-input
+        v-if="edge"
+        :title="edge.title"
+        :value="edge.length"
+        :error="inputError"
+        :edges="edgeList"
+        :selected="selected"
+        @apply="applyLength"
+        @select="selectEdge"
+        @close="selectEdge('')"
+      />
+
+      <footer class="bottom">
+        <button class="icon center shadow" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
+        <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
+        <button class="btn done center shadow" :disabled="!ceiling.closed || errors.length > 0" @click="finish">Готово</button>
+      </footer>
     </div>
 
     <div class="canvas shadow">
@@ -44,11 +64,12 @@
         @move-start="onMoveStart"
         @move="draft.moveCorner"
         @move-end="onMoveEnd"
-      />
-      <button v-if="selectedWall" class="btn secondary action center shadow" @click="addCorner">Добавить угол</button>
-      <button v-else-if="selectedCorner" class="btn secondary action center shadow" @click="removeCorner">Удалить угол</button>
+      >
+        <button v-if="selectedWall" class="btn secondary tool center shadow" @click="addCorner">Добавить угол</button>
+        <button v-else-if="selectedCorner" class="btn secondary tool center shadow" @click="removeCorner">Удалить угол</button>
+      </ceiling-drawing-stage>
       <button
-        v-else-if="diagonalList.length"
+        v-if="diagonalList.length && !selectedWall && !selectedCorner"
         class="btn secondary action toggle center shadow"
         @click="toggleDiagonals"
       >
@@ -59,24 +80,6 @@
         <button class="icon center shadow" @click="stage.zoom(0.8)"><span class="mask-icon minus-icon"></span></button>
       </div>
     </div>
-
-    <ceiling-wall-input
-      v-if="edge"
-      :title="edge.title"
-      :value="edge.length"
-      :error="inputError"
-      :edges="edgeList"
-      :selected="selected"
-      @apply="applyLength"
-      @select="selectEdge"
-      @close="selectEdge('')"
-    />
-
-    <footer class="bottom">
-      <button class="icon center shadow" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
-      <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
-      <button class="btn done center shadow" :disabled="!ceiling.closed || errors.length > 0" @click="finish">Готово</button>
-    </footer>
 
     <ceiling-hints v-if="hintsOpen" @close="closeHints" />
   </div>
@@ -305,13 +308,17 @@ onBeforeUnmount(() => {
         &:disabled
             color: var(--border-color)
             box-shadow: none
+    // на телефоне панель раскладывается вокруг холста: поле и кнопки под ним
+    .panel
+        display: contents
+    .wall-input, .bottom
+        order: 1
+    // колонки по левому краю, сноска под ними
     .summary
-        display: flex
-        flex-wrap: wrap
-        justify-content: space-around
-        gap: 8px
+        display: grid
+        grid-template-columns: repeat(3, 1fr)
+        gap: 4px 8px
         padding: 8px 12px
-        text-align: center
         .name
             display: block
             font-size: 0.875rem
@@ -319,9 +326,8 @@ onBeforeUnmount(() => {
         .item
             font-weight: 600
         .note
-            flex: 0 0 100%
+            grid-column: 1 / -1
             font-size: 0.8125rem
-            text-align: left
             color: var(--disabled-color)
     .summary, .status, .problem, .diagonals, .canvas
         margin: 0 8px
@@ -355,6 +361,13 @@ onBeforeUnmount(() => {
         bottom: 8px
         left: 8px
         padding: 0 12px
+    // кнопка у выбранного угла или стены
+    .tool
+        min-height: 36px
+        padding: 0 14px
+        font-size: 0.875rem
+        white-space: nowrap
+        border: 1px solid var(--main-color)
     .canvas
         position: relative
         flex: 1
@@ -374,11 +387,33 @@ onBeforeUnmount(() => {
     .done
         flex: 1
 
+// на ПК чертёж слева, всё остальное в колонке справа
 @media (min-width: $bp-pc)
     .ceiling-editor
-        .done
-            flex: 0 0 240px
-            margin-left: auto
+        display: grid
+        grid-template-columns: 1fr 400px
+        grid-template-rows: auto minmax(0, 1fr)
+        gap: 0
+        .top
+            grid-column: 1 / -1
+        .panel
+            display: flex
+            flex-direction: column
+            gap: 8px
+            grid-column: 2
+            grid-row: 2
+            min-height: 0
+            padding: 8px 8px 8px 0
+            overflow-y: auto
+        .summary, .status, .problem, .diagonals, .wall-input
+            margin: 0
+        .bottom
+            margin-top: auto
+            padding: 0
+        .canvas
+            grid-column: 1
+            grid-row: 2
+            margin: 8px
 
 @media (max-width: $bp-pc)
     .ceiling-editor

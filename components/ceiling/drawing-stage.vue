@@ -57,6 +57,9 @@
         </template>
       </v-layer>
     </v-stage>
+    <div v-if="actionPlace" class="place" :style="actionPlace">
+      <slot />
+    </div>
   </div>
 </template>
 
@@ -97,6 +100,9 @@ const START_SCALE = 0.8
 const BP_PC = 1024
 const MIN_SCALE = 0.05
 const MAX_SCALE = 4
+// примерный размер кнопки у угла, чтобы она не закрывала угол и не уходила за край
+const ACTION_WIDTH = 150
+const ACTION_HEIGHT = 40
 
 const root = ref(null)
 const stageRef = ref(null)
@@ -204,7 +210,7 @@ function edgeLabel(edge) {
   const b = pointOf(edge.to)
   const text = `${formatNumber(roundLength(edge.length))} см`
   // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
-  const compact = size.value.width < BP_PC
+  const compact = window.innerWidth < BP_PC
   const width = compact ? text.length * 8.5 + 4 : text.length * 9 + 16
   const height = compact ? 18 : 26
   // подпись длиннее стены не показываем, кроме выбранной
@@ -293,6 +299,48 @@ const cornerItems = computed(() => props.ceiling.corners.map((corner, i) => {
     }
   }
 }))
+
+// ====== Кнопка у выбранного угла или стены ======
+// ставим снаружи комнаты, рядом с углом или серединой стены
+const actionPlace = computed(() => {
+  const { closed, walls, corners } = props.ceiling
+  if (!closed || !props.selected) return null
+  const isWall = walls.some((wall) => edgeId(wall) === props.selected)
+  const isCorner = corners.some((corner) => corner.id === props.selected)
+  if (!isWall && !isCorner) return null
+
+  const [from, to] = activeCorners.value
+  const a = pointOf(from)
+  const b = isWall ? pointOf(to) : a
+  const point = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+
+  // направление от центра комнаты, для стены - перпендикуляр к ней
+  const { minX, maxX, minY, maxY } = calcBounds(points.value)
+  let dx = point.x - (minX + maxX) / 2
+  let dy = point.y - (minY + maxY) / 2
+  if (isWall) {
+    const sign = (a.y - b.y) * dx + (b.x - a.x) * dy < 0 ? -1 : 1
+    dx = (a.y - b.y) * sign
+    dy = (b.x - a.x) * sign
+  }
+  const length = Math.hypot(dx, dy) || 1
+  dx /= length
+  dy /= length
+
+  // отступ, чтобы кнопка не легла на угол или подпись стены
+  const offset = Math.abs(dx) * ACTION_WIDTH / 2 + Math.abs(dy) * ACTION_HEIGHT / 2 + 20
+  const { width, height } = size.value
+  const fits = (x, y) => x >= ACTION_WIDTH / 2 + 8 && x <= width - ACTION_WIDTH / 2 - 8
+    && y >= ACTION_HEIGHT / 2 + 8 && y <= height - ACTION_HEIGHT / 2 - 8
+  // снаружи не помещается (стена у края холста) - ставим внутрь комнаты
+  const outsideX = point.x + view.value.x + dx * offset
+  const outsideY = point.y + view.value.y + dy * offset
+  const side = fits(outsideX, outsideY) ? 1 : -1
+  const x = Math.min(Math.max(point.x + view.value.x + dx * offset * side, ACTION_WIDTH / 2 + 8), width - ACTION_WIDTH / 2 - 8)
+  const y = Math.min(Math.max(point.y + view.value.y + dy * offset * side, ACTION_HEIGHT / 2 + 8), height - ACTION_HEIGHT / 2 - 8)
+  console.log('place', x, y)
+  return { left: `${x}px`, top: `${y}px` }
+})
 
 // ====== Масштаб ======
 // Кнопки (приблизить, отдалить)
@@ -390,7 +438,10 @@ function onDrag(event) {
   view.value = { ...view.value, x: stage.x(), y: stage.y() }
 }
 
-function onHover() {
+function onHover(event) {
+  // на ПК курсор показывает, что на стену и угол можно нажать
+  const stage = event.target.getStage()
+  stage.container().style.cursor = event.target === stage ? '' : 'pointer'
   if (!props.ceiling.closed) hover.value = pointerPosition()
 }
 
@@ -441,7 +492,11 @@ defineExpose({ fit, zoom })
 
 <style lang="sass">
 .drawing-stage
+    position: relative
     width: 100%
     height: 100%
     touch-action: none
+    .place
+        position: absolute
+        transform: translate(-50%, -50%)
 </style>
