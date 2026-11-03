@@ -208,6 +208,8 @@ function edgeLabel(edge) {
   const id = edgeId(edge)
   const a = pointOf(edge.from)
   const b = pointOf(edge.to)
+  // без замера подписи нет: размер по сетке условный, стена и так пунктиром
+  if (!edge.fixed && !edge.entered) return null
   const text = `${formatNumber(roundLength(edge.length))} см`
   // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
   const compact = window.innerWidth < BP_PC

@@ -25,6 +25,9 @@ export function useCeilingDraft() {
     return Math.max(ceiling.value.corners.length - 3 - ceiling.value.diagonals.length, 0)
   })
 
+  // все стены измерены: до этого размеры по сетке условные, площадь не показываем
+  const measured = computed(() => Boolean(ceiling.value?.closed && ceiling.value.walls.every((wall) => wall.fixed)))
+
   // ====== История изменений ======
   function begin(next) {
     ceiling.value = next
@@ -121,6 +124,7 @@ export function useCeilingDraft() {
     errors,
     summary,
     missingDiagonals,
+    measured,
     canUndo: computed(() => past.value.length > 0),
     start,
     startEmpty,

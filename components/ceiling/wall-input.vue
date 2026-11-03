@@ -11,7 +11,7 @@
           @click.prevent="emit('select', item.id)"
         >
           <span class="edge-name">{{ item.name }}</span>
-          <span class="edge-length">{{ formatNumber(roundLength(item.length)) }}</span>
+          <span class="edge-length">{{ item.entered ? formatNumber(roundLength(item.length)) : '—' }}</span>
         </button>
       </div>
       <button class="close center" @click.prevent="emit('close')"><span class="mask-icon close-icon"></span></button>
@@ -59,8 +59,9 @@ const list = ref(null)
 const text = ref('')
 
 // ====== Работа с полем ======
+// без замера поле пустое: размер по сетке условный
 function reset() {
-  text.value = formatNumber(roundLength(props.value))
+  text.value = props.value ? formatNumber(roundLength(props.value)) : ''
   nextTick(() => {
     input.value.focus()
     // на телефоне не выделяем: выглядит как будто предлагают скопировать

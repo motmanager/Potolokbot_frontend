@@ -8,10 +8,10 @@
 
     <div class="panel">
       <div class="summary shadow">
-        <p class="item"><span class="name">Площадь</span>{{ ceiling.closed ? formatNumber(summary.area) : 0 }} м²{{ missingDiagonals ? '*' : '' }}</p>
-        <p class="item"><span class="name">Периметр</span>{{ ceiling.closed ? formatNumber(summary.perimeter) : 0 }} м</p>
+        <p class="item"><span class="name">Площадь</span>{{ measured ? `${formatNumber(summary.area)} м²${missingDiagonals ? '*' : ''}` : '—' }}</p>
+        <p class="item"><span class="name">Периметр</span>{{ measured ? `${formatNumber(summary.perimeter)} м` : '—' }}</p>
         <p class="item"><span class="name">Углы</span>{{ ceiling.corners.length }}</p>
-        <p v-if="missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
+        <p v-if="measured && missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
       </div>
       <p class="status shadow">{{ statusText }}</p>
       <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
@@ -27,7 +27,7 @@
             :class="{ entered: diagonal.entered }"
             @click="selectEdge(edgeId(diagonal))"
           >
-            {{ diagonal.from }}{{ diagonal.to }} {{ formatNumber(roundLength(diagonal.length)) }} см
+            {{ diagonal.from }}{{ diagonal.to }} {{ diagonal.entered ? `${formatNumber(roundLength(diagonal.length))} см` : '—' }}
           </button>
         </div>
       </div>
@@ -35,7 +35,7 @@
       <ceiling-wall-input
         v-if="edge"
         :title="edge.title"
-        :value="edge.length"
+        :value="edge.measured ? edge.length : 0"
         :error="inputError"
         :edges="edgeList"
         :selected="selected"
@@ -47,7 +47,7 @@
       <footer class="bottom">
         <button class="icon center shadow" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
         <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
-        <button class="btn done center shadow" :disabled="!ceiling.closed || errors.length > 0" @click="finish">Готово</button>
+        <button class="btn done center shadow" :disabled="!measured || errors.length > 0" @click="finish">Готово</button>
       </footer>
     </div>
 
@@ -94,7 +94,7 @@ const HINTS_KEY = 'ceiling-hints-seen'
 const emit = defineEmits(['close'])
 
 const draft = useCeilingDraft()
-const { ceiling, errors, summary, missingDiagonals, canUndo } = draft
+const { ceiling, errors, summary, missingDiagonals, measured, canUndo } = draft
 
 const stage = ref(null)
 const selected = ref('')
@@ -116,9 +116,9 @@ const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corn
 // выбранная стена или диагональ
 const edge = computed(() => {
   const wall = ceiling.value.walls.find((item) => edgeId(item) === selected.value)
-  if (wall) return { ...wall, title: `Стена ${wall.from}${wall.to}` }
+  if (wall) return { ...wall, title: `Стена ${wall.from}${wall.to}`, measured: wall.fixed }
   const diagonal = diagonalList.value.find((item) => edgeId(item) === selected.value)
-  if (diagonal) return { ...diagonal, title: `Диагональ ${diagonal.from}${diagonal.to}` }
+  if (diagonal) return { ...diagonal, title: `Диагональ ${diagonal.from}${diagonal.to}`, measured: diagonal.entered }
   return null
 })
 
@@ -138,6 +138,7 @@ const diagonalsText = computed(() => {
 const statusText = computed(() => {
   const { closed, corners } = ceiling.value
   if (closed) {
+    if (!measured.value) return 'Введите замеры всех стен. Стены без замера нарисованы пунктиром'
     return 'Нажмите на стену или угол. Угол можно перетащить'
   }
   if (!corners.length) return 'Нажимайте на пересечения сетки, чтобы отметить углы комнаты'
@@ -246,6 +247,7 @@ function closeHints() {
 }
 
 function finish() {
+  console.log('measured', measured.value)
   draft.drawn.value = true
   emit('close')
 }
