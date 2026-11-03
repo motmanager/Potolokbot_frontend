@@ -4,8 +4,20 @@
       <div class="card shadow">
         <h1 class="h1">Схема комнаты</h1>
 
+        <template v-if="!drawn">
+          <p class="text">Выберите форму комнаты</p>
+          <div class="options">
+            <button class="option center" :class="{ active: shape === 'rectangle' }" @click="shape = 'rectangle'">Прямоугольная</button>
+            <button class="option center" :class="{ active: shape === 'other' }" @click="shape = 'other'">Другая форма</button>
+          </div>
+        </template>
+
+        <div v-if="!drawn && shape === 'other'" class="draw">
+          <p class="note">Отметьте углы комнаты на схеме, затем введите длины стен.</p>
+          <button class="btn center shadow" @click="drawRoom">Нарисовать комнату</button>
+        </div>
+
         <form v-if="showFields" class="sizes" @submit.prevent="openEditor">
-          <p v-if="!drawn" class="text">Укажите размеры комнаты или постройте чертёж</p>
           <label class="field">
             <span class="name">Длина, см</span>
             <input v-model="length" class="value" inputmode="decimal" placeholder="Например, 400" @input="onSizeInput">
@@ -16,10 +28,7 @@
           </label>
           <p v-if="sizeError" class="error">{{ sizeError }}</p>
           <p v-else-if="preview && !drawn" class="result">Площадь {{ preview.area }} м². Периметр {{ preview.perimeter }} м</p>
-          <template v-if="!drawn">
-            <p class="note">Для сложной формы и неровных стен укажите размеры на схеме.</p>
-            <button class="btn center shadow" :disabled="!!sizeError">Построить чертёж</button>
-          </template>
+          <button v-if="!drawn" class="btn center shadow" :disabled="!!sizeError">Построить чертёж</button>
         </form>
 
         <div v-if="drawn" class="scheme">
@@ -53,6 +62,8 @@ const { ceiling, drawn, summary, missingDiagonals } = draft
 const length = ref('')
 const width = ref('')
 const editorOpen = ref(false)
+// прямоугольная комната по длине и ширине или другая форма по углам
+const shape = ref('rectangle')
 
 // ====== Проверка полей ======
 const isValid = (value) => value >= MIN_LENGTH && value <= MAX_LENGTH
@@ -84,7 +95,7 @@ const rectangleSize = computed(() => {
   return { length: maxX - minX, width: maxY - minY }
 })
 
-const showFields = computed(() => !drawn.value || rectangleSize.value)
+const showFields = computed(() => (drawn.value ? rectangleSize.value : shape.value === 'rectangle'))
 
 watch(rectangleSize, (size) => {
   console.log('size', size)
@@ -97,8 +108,14 @@ watch(rectangleSize, (size) => {
 function openEditor() {
   console.log('testttt', length.value, width.value)
   if (sizeError.value) return
-  if (!length.value && !width.value) draft.startEmpty()
-  else draft.start(parseNumber(length.value) || DEFAULT_LENGTH, parseNumber(width.value) || DEFAULT_WIDTH)
+  draft.start(parseNumber(length.value) || DEFAULT_LENGTH, parseNumber(width.value) || DEFAULT_WIDTH)
+  editorOpen.value = true
+}
+
+// другая форма: пустая схема, углы ставим сами
+function drawRoom() {
+  console.log('shape', shape.value)
+  draft.startEmpty()
   editorOpen.value = true
 }
 
@@ -145,6 +162,25 @@ const outline = computed(() => ceiling.value.corners.map((corner) => `${corner.x
     .result
         font-weight: 600
         color: var(--main-color)
+    .options
+        display: grid
+        grid-template-columns: 1fr 1fr
+        gap: 8px
+        .option
+            min-height: 48px
+            padding: 0 12px
+            border: 1px solid var(--border-color)
+            border-radius: 8px
+            color: var(--main-color)
+            background: var(--card-color)
+            &.active
+                font-weight: 600
+                border-color: var(--main-color)
+                background: var(--secondary-color)
+    .draw
+        display: flex
+        flex-direction: column
+        gap: 12px
     .sizes
         display: flex
         flex-direction: column
