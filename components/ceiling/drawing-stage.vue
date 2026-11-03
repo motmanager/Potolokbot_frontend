@@ -93,6 +93,8 @@ const COLORS = {
 const DASH = [10, 6]
 const FONT = 'Montserrat, Arial, sans-serif'
 const START_SCALE = 0.8
+// как $bp-pc в adaptive.sass
+const BP_PC = 1024
 const MIN_SCALE = 0.05
 const MAX_SCALE = 4
 
@@ -201,8 +203,13 @@ function edgeLabel(edge) {
   const a = pointOf(edge.from)
   const b = pointOf(edge.to)
   const text = `${formatNumber(roundLength(edge.length))} см`
-  const width = text.length * 9 + 16
-  const height = 26
+  // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
+  const compact = size.value.width < BP_PC
+  const width = compact ? text.length * 8.5 + 4 : text.length * 9 + 16
+  const height = compact ? 18 : 26
+  // подпись длиннее стены не показываем, кроме выбранной
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  if (length < width + 16 && id !== props.selected) return null
   const entered = edge.fixed || edge.entered || id === props.selected
   const color = entered ? edgeColor(id) : COLORS.preview
   // текст не переворачивается вверх ногами
@@ -211,7 +218,7 @@ function edgeLabel(edge) {
   return {
     id,
     group: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, offsetX: width / 2, offsetY: height / 2, rotation },
-    rect: { width, height, cornerRadius: 8, fill: COLORS.label, stroke: color, strokeWidth: 1 },
+    rect: { width, height, cornerRadius: compact ? 4 : 8, fill: COLORS.label, stroke: color, strokeWidth: compact ? 0 : 1 },
     text: {
       width,
       height,
@@ -231,7 +238,7 @@ function edgeLabel(edge) {
 const labels = computed(() => [
   ...props.diagonals.filter((diagonal) => diagonal.entered),
   ...props.ceiling.walls
-].map(edgeLabel))
+].map(edgeLabel).filter(Boolean))
 
 // контур, пока не замкнут
 const contourConfig = computed(() => ({
@@ -301,8 +308,9 @@ function fit() {
 
   // отступы
   const { minX, maxX, minY, maxY } = calcBounds(corners)
-  const padding = 56
-  const bottom = 72
+  // на низком холсте (открыта клавиатура) отступы меньше, чтобы чертёж не мельчал
+  const padding = Math.min(56, stageHeight / 8)
+  const bottom = Math.min(72, stageHeight / 6)
   const width = Math.max(stageWidth - padding * 2, 40)
   const height = Math.max(stageHeight - padding - bottom, 40)
 
