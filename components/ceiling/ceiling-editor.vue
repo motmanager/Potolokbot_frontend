@@ -1,26 +1,22 @@
 <template>
-  <div class="ceiling-editor" :class="{ editing: edge }">
+  <div class="ceiling-editor" :class="{ editing: edge, closed: ceiling.closed }">
     <header class="top center">
       <button class="icon center" @click="close"><span class="mask-icon close-icon"></span></button>
       <h2 class="title">Схема комнаты</h2>
       <button class="icon help center" @click="hintsOpen = true">?</button>
     </header>
 
+    <div class="summary shadow">
+      <p class="item"><span class="name">Площадь</span>{{ ceiling.closed ? formatNumber(summary.area) : 0 }} м²{{ missingDiagonals ? '*' : '' }}</p>
+      <p class="item"><span class="name">Периметр</span>{{ ceiling.closed ? formatNumber(summary.perimeter) : 0 }} м</p>
+      <p class="item"><span class="name">Углы</span>{{ ceiling.corners.length }}</p>
+      <p v-if="missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
+    </div>
     <p class="status shadow">{{ statusText }}</p>
-    <p v-if="missingDiagonals" class="warning shadow">Расчёт приблизительный: не введены диагонали</p>
     <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
     <p v-for="error in errors" :key="error.message" class="problem shadow">{{ error.message }}</p>
 
-    <ceiling-wall-input
-      v-if="edge"
-      :title="edge.title"
-      :value="edge.length"
-      :error="inputError"
-      @apply="applyLength"
-      @close="selectEdge('')"
-    />
-
-    <div v-else-if="diagonalsOpen && diagonalList.length" class="diagonals shadow">
+    <div v-if="!edge && diagonalsOpen && diagonalList.length" class="diagonals shadow">
       <p class="text">{{ diagonalsText }}</p>
       <div class="list">
         <button
@@ -64,6 +60,18 @@
       </div>
     </div>
 
+    <ceiling-wall-input
+      v-if="edge"
+      :title="edge.title"
+      :value="edge.length"
+      :error="inputError"
+      :edges="edgeList"
+      :selected="selected"
+      @apply="applyLength"
+      @select="selectEdge"
+      @close="selectEdge('')"
+    />
+
     <footer class="bottom">
       <button class="icon center shadow" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
       <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
@@ -95,7 +103,8 @@ const opened = ceiling.value
 
 // ====== Вычисляемые значения ======
 const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
-const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) => diagonalsOpen.value || diagonal.entered))
+const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
+  diagonalsOpen.value || diagonal.entered || edgeId(diagonal) === selected.value))
 
 const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
 const selectedWall = computed(() => ceiling.value.walls.some((item) => edgeId(item) === selected.value))
@@ -110,6 +119,12 @@ const edge = computed(() => {
   return null
 })
 
+// стены по порядку, потом диагонали: в таком порядке вводим замеры
+const edgeList = computed(() => [
+  ...ceiling.value.walls.map((wall) => ({ ...wall, entered: wall.fixed })),
+  ...diagonalList.value
+].map((item) => ({ id: edgeId(item), name: `${item.from}${item.to}`, length: item.length, entered: item.entered })))
+
 // форме с n углами нужно n - 3 диагонали
 const diagonalsText = computed(() => {
   if (!missingDiagonals.value) return 'Нажмите на диагональ, чтобы изменить замер'
@@ -120,7 +135,7 @@ const diagonalsText = computed(() => {
 const statusText = computed(() => {
   const { closed, corners } = ceiling.value
   if (closed) {
-    return `Площадь ${formatNumber(summary.value.area)} м². Периметр ${formatNumber(summary.value.perimeter)} м. Нажмите на стену или угол. Угол можно перетащить`
+    return 'Нажмите на стену или угол. Угол можно перетащить'
   }
   if (!corners.length) return 'Нажимайте на пересечения сетки, чтобы отметить углы комнаты'
   if (corners.length < 4) return 'Отметьте ещё углы. Комнате нужно минимум четыре'
@@ -155,15 +170,19 @@ function onPlace(point) {
 function onClose() {
   closeError.value = draft.close()
   console.log('close error', closeError.value)
-  if (!closeError.value) nextTick(() => stage.value.fit())
+  if (closeError.value) return
+  // сразу вводим длину первой стены
+  selectEdge(edgeId(ceiling.value.walls[0]))
+  nextTick(() => stage.value.fit())
 }
 
+// поле закрываем после перетаскивания, иначе холст меняет размер под пальцем
 function onMoveStart() {
-  selectEdge('')
   draft.startMove()
 }
 
 function onMoveEnd() {
+  selectEdge('')
   draft.endMove()
   nextTick(() => stage.value.fit())
 }
@@ -194,7 +213,15 @@ function applyLength(length) {
   console.log('edge', edge.value)
   const isDiagonal = diagonalList.value.some((item) => edgeId(item) === selected.value)
   inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
-  if (!inputError.value) runAndFit(() => {})
+  if (inputError.value) return
+  // после стрелки переходим к следующей стене, после последней закрываем поле
+  const current = selected.value
+  const ids = edgeList.value.map((item) => item.id)
+  const index = ids.indexOf(current)
+  const next = index === -1 ? '' : ids[index + 1] || ''
+  console.log('next', next)
+  runAndFit(() => {})
+  selectEdge(next)
 }
 
 // ====== Кнопки редактора ======
@@ -278,14 +305,29 @@ onBeforeUnmount(() => {
         &:disabled
             color: var(--border-color)
             box-shadow: none
-    .status, .warning, .problem, .diagonals, .canvas
+    .summary
+        display: flex
+        flex-wrap: wrap
+        justify-content: space-around
+        gap: 8px
+        padding: 8px 12px
+        text-align: center
+        .name
+            display: block
+            font-size: 0.875rem
+            color: var(--disabled-color)
+        .item
+            font-weight: 600
+        .note
+            flex: 0 0 100%
+            font-size: 0.875rem
+            color: var(--disabled-color)
+    .summary, .status, .problem, .diagonals, .canvas
         margin: 0 8px
         border-radius: 8px
         background: var(--card-color)
-    .status, .warning, .problem
+    .status, .problem
         padding: 8px 12px
-    .warning
-        color: var(--main-color)
     .problem
         color: var(--error-color)
     .diagonals
@@ -339,12 +381,18 @@ onBeforeUnmount(() => {
 
 @media (max-width: $bp-pc)
     .ceiling-editor
-        // на три строки, чтобы холст не прыгал
+        // на две строки, чтобы холст не прыгал
         .status
-            min-height: 84px
+            min-height: 60px
+        // на готовом чертеже место отдаём холсту, подсказки остаются под «?»
+        &.closed .status
+            display: none
+        // при вводе чертёж сверху, поле снизу
         &.editing
-            .zoom, .toggle, .warning
+            .zoom, .toggle, .summary, .status, .bottom
                 display: none
+            .wall-input
+                margin-bottom: 8px
 
 // открытая клавиатура
 @media (max-height: 500px)

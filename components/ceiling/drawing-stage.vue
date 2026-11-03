@@ -89,6 +89,8 @@ const COLORS = {
   corner: css.getPropertyValue('--accent-color'),
   label: css.getPropertyValue('--card-color')
 }
+// невведённая стена пунктиром
+const DASH = [10, 6]
 const FONT = 'Montserrat, Arial, sans-serif'
 const START_SCALE = 0.8
 const MIN_SCALE = 0.05
@@ -157,19 +159,28 @@ function edgeColor(id) {
   return props.errorWalls.includes(id) ? COLORS.error : COLORS.wall
 }
 
+// концы выбранной стены или выбранный угол
+const activeCorners = computed(() => (props.selected ? props.selected.split('-') : []))
+
 // точка угла на холсте
 function pointOf(id) {
   return points.value[props.ceiling.corners.findIndex((corner) => corner.id === id)]
 }
 
-// стены
+// стены: введённые сплошные, остальные пунктиром
 const wallLines = computed(() => props.ceiling.walls.map((wall, i) => {
   const id = edgeId(wall)
   const a = points.value[i]
   const b = points.value[(i + 1) % points.value.length]
   return {
     id,
-    config: { points: [a.x, a.y, b.x, b.y], stroke: edgeColor(id), strokeWidth: 2.5, hitStrokeWidth: 24 }
+    config: {
+      points: [a.x, a.y, b.x, b.y],
+      stroke: edgeColor(id),
+      strokeWidth: id === props.selected ? 3.5 : 2.5,
+      dash: wall.fixed ? [] : DASH,
+      hitStrokeWidth: 24
+    }
   }
 }))
 
@@ -184,7 +195,7 @@ const diagonalLines = computed(() => props.diagonals.map((diagonal) => {
   return { id, config: { ...line, stroke, strokeWidth: 2, dash: [6, 5] } }
 }))
 
-// подпись с длиной
+// подпись с длиной вдоль стены, невведённая серая
 function edgeLabel(edge) {
   const id = edgeId(edge)
   const a = pointOf(edge.from)
@@ -192,10 +203,14 @@ function edgeLabel(edge) {
   const text = `${formatNumber(roundLength(edge.length))} см`
   const width = text.length * 9 + 16
   const height = 26
-  const color = edgeColor(id)
+  const entered = edge.fixed || edge.entered || id === props.selected
+  const color = entered ? edgeColor(id) : COLORS.preview
+  // текст не переворачивается вверх ногами
+  const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI
+  const rotation = angle > 90 ? angle - 180 : angle < -90 ? angle + 180 : angle
   return {
     id,
-    group: { x: (a.x + b.x) / 2 - width / 2, y: (a.y + b.y) / 2 - height / 2 },
+    group: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, offsetX: width / 2, offsetY: height / 2, rotation },
     rect: { width, height, cornerRadius: 8, fill: COLORS.label, stroke: color, strokeWidth: 1 },
     text: {
       width,
@@ -249,8 +264,8 @@ const cornerItems = computed(() => props.ceiling.corners.map((corner, i) => {
     circle: {
       x,
       y,
-      radius: corner.id === props.selected ? 11 : 8,
-      fill: COLORS.corner,
+      radius: activeCorners.value.includes(corner.id) ? 11 : 8,
+      fill: activeCorners.value.includes(corner.id) ? COLORS.corner : COLORS.label,
       stroke: COLORS.wall,
       strokeWidth: 2.5,
       // чтобы попасть пальцем, на готовом чертеже меньше, чтобы не мешать стенам

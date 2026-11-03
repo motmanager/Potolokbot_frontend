@@ -1,5 +1,18 @@
 <template>
   <form class="wall-input shadow" @submit.prevent="submit">
+    <div ref="list" class="edges">
+      <button
+        v-for="item in edges"
+        :key="item.id"
+        class="edge"
+        :class="{ active: item.id === selected, entered: item.entered }"
+        @mousedown.prevent
+        @click.prevent="emit('select', item.id)"
+      >
+        <span class="edge-name">{{ item.name }}</span>
+        <span class="edge-length">{{ formatNumber(roundLength(item.length)) }}</span>
+      </button>
+    </div>
     <div class="row">
       <label class="field">
         <span class="name">{{ title }}</span>
@@ -16,7 +29,7 @@
       </label>
       <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(-LENGTH_STEP)"><span class="mask-icon minus-icon"></span></button>
       <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(LENGTH_STEP)"><span class="mask-icon plus-icon"></span></button>
-      <button class="btn center shadow">ОК</button>
+      <button class="btn next center shadow"><span class="mask-icon arrow-icon"></span></button>
       <button class="close center" @click.prevent="emit('close')"><span class="mask-icon close-icon"></span></button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
@@ -33,11 +46,14 @@ const LENGTH_STEP = 1
 const props = defineProps({
   title: { type: String, required: true },
   value: { type: Number, required: true },
-  error: { type: String, default: '' }
+  error: { type: String, default: '' },
+  edges: { type: Array, default: () => [] },
+  selected: { type: String, default: '' }
 })
-const emit = defineEmits(['apply', 'close'])
+const emit = defineEmits(['apply', 'close', 'select'])
 
 const input = ref(null)
+const list = ref(null)
 const text = ref('')
 
 // ====== Работа с полем ======
@@ -59,8 +75,25 @@ function submit() {
   emit('apply', parseNumber(text.value))
 }
 
-watch(() => props.title, reset)
-onMounted(reset)
+// ====== Лента стен ======
+// выбранная стена всегда видна в ленте
+function showSelected() {
+  nextTick(() => {
+    const active = list.value.querySelector('.active')
+    console.log('active', active)
+    if (active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+  })
+}
+
+watch(() => props.title, () => {
+  reset()
+  showSelected()
+})
+
+onMounted(() => {
+  reset()
+  showSelected()
+})
 </script>
 
 <style lang="sass">
@@ -71,6 +104,30 @@ onMounted(reset)
     padding: 10px 12px
     border-radius: 8px
     background: var(--card-color)
+    .edges
+        display: flex
+        gap: 8px
+        margin-bottom: 10px
+        overflow-x: auto
+        scrollbar-width: none
+    .edge
+        display: flex
+        flex: 0 0 72px
+        flex-direction: column
+        align-items: center
+        gap: 2px
+        padding: 6px 0
+        border: 1px solid var(--border-color)
+        border-radius: 8px
+        color: var(--disabled-color)
+        background: var(--card-color)
+        &.entered
+            color: var(--main-color)
+        &.active
+            border-color: var(--accent-color)
+            color: var(--accent-color)
+    .edge-name
+        font-weight: 600
     .row
         display: flex
         align-items: center

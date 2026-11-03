@@ -35,7 +35,9 @@ export function createRectangle(length, width) {
     { id: 'C', x: length, y: width },
     { id: 'D', x: length, y: 0 }
   ]
-  return { ...createEmpty(), corners, walls: buildWalls(corners), closed: true }
+  // длину и ширину ввели в полях, эти стены считаются введёнными
+  const walls = buildWalls(corners).map((wall) => ({ ...wall, fixed: true }))
+  return { ...createEmpty(), corners, walls, closed: true }
 }
 
 // ====== Диагонали ======
