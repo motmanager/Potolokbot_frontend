@@ -1,7 +1,7 @@
 <template>
   <div class="ceiling-hints center" @click.self="emit('close')">
     <div class="card shadow">
-      <h3 class="heading">Как построить комнату</h3>
+      <h3 class="heading">Как построить потолок</h3>
       <ol class="list">
         <li v-for="hint in HINTS" :key="hint" class="item">{{ hint }}</li>
       </ol>
