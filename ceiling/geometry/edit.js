@@ -1,20 +1,19 @@
+import { calcDistance } from '../../utils/calcDistance.js'
 import { formatNumber } from '../../utils/formatNumber.js'
 import { roundLength } from '../../utils/roundLength.js'
-import { GRID_STEP, MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
+import { MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
 import { solve } from './solve.js'
 import { validate } from './validate.js'
 
 // ====== Построение по точкам ======
-const toGrid = (value) => Math.round(value / GRID_STEP) * GRID_STEP
-
-// точка на пересечении сетки
-export function snapToGrid(point) {
-  return { x: toGrid(point.x), y: toGrid(point.y) }
+// точка ставится где нажали, с точностью до 1 см
+export function roundPoint(point) {
+  return { x: Math.round(point.x), y: Math.round(point.y) }
 }
 
 export function addPoint(ceiling, point) {
   const { corners } = ceiling
-  const place = snapToGrid(point)
+  const place = roundPoint(point)
   if (corners.some((corner) => corner.x === place.x && corner.y === place.y)) return ceiling
   const id = String.fromCharCode(65 + corners.length)
   return { ...ceiling, corners: [...corners, { id, ...place }] }
@@ -68,7 +67,7 @@ export function removeCorner(ceiling, cornerId) {
 
 // перетаскивание, диагонали этого угла больше не верны
 export function moveCorner(ceiling, cornerId, point) {
-  const place = snapToGrid(point)
+  const place = roundPoint(point)
   const { corners, walls, diagonals } = ceiling
   if (corners.some((corner) => corner.x === place.x && corner.y === place.y)) return ceiling
   const next = corners.map((corner) => (corner.id === cornerId ? { ...corner, ...place } : corner))
@@ -81,6 +80,17 @@ export function moveCorner(ceiling, cornerId, point) {
     walls: buildWalls(next, kept),
     diagonals: diagonals.filter((diagonal) => diagonal.from !== cornerId && diagonal.to !== cornerId)
   }
+}
+
+// ====== Масштаб наброска ======
+// набросок без масштаба: ещё нет ни одного замера
+const isSketch = (ceiling) => !ceiling.walls.some((wall) => wall.fixed) && !ceiling.diagonals.length
+
+// первый замер задаёт масштаб: форма та же, все размеры пропорционально
+function scaleSketch(ceiling, ratio) {
+  console.log('ratio', ratio)
+  const corners = ceiling.corners.map((corner) => ({ ...corner, x: corner.x * ratio, y: corner.y * ratio }))
+  return { ...ceiling, corners, walls: buildWalls(corners, ceiling.walls) }
 }
 
 // ====== Изменение длины стены ======
@@ -96,6 +106,8 @@ export function setWallLength(ceiling, wallId, length) {
   }
 
   const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length, fixed: true } : item)) }
+  if (isSketch(ceiling)) return { ceiling: scaleSketch(updated, length / wall.length), error: '' }
+
   const solved = solve(updated, true)
   console.log('fixed', updated.walls.filter((item) => item.fixed))
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
@@ -123,6 +135,10 @@ export function setDiagonal(ceiling, from, to, length) {
   const others = ceiling.diagonals.filter((diagonal) => diagonal.from !== from || diagonal.to !== to)
   const updated = { ...ceiling, diagonals: [...others, { from, to, length }] }
   console.log('here', updated.diagonals)
+  if (isSketch(ceiling)) {
+    const corner = (id) => ceiling.corners.find((item) => item.id === id)
+    return { ceiling: scaleSketch(updated, length / calcDistance(corner(from), corner(to))), error: '' }
+  }
   const solved = solve(updated)
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
   const side = shorterSide(ceiling, from, to)

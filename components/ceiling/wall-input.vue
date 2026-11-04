@@ -24,15 +24,31 @@
           v-model="text"
           class="value"
           inputmode="decimal"
+          placeholder="Введите размер"
+          :readonly="keypad"
           @keydown.enter.prevent="submit"
           @keydown.up.prevent="changeBy(LENGTH_STEP)"
           @keydown.down.prevent="changeBy(-LENGTH_STEP)"
         >
         <span class="unit">см</span>
       </label>
-      <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(-LENGTH_STEP)"><span class="mask-icon minus-icon"></span></button>
-      <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(LENGTH_STEP)"><span class="mask-icon plus-icon"></span></button>
-      <button class="btn next center shadow">Следующий шаг</button>
+      <template v-if="!keypad">
+        <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(-LENGTH_STEP)"><span class="mask-icon minus-icon"></span></button>
+        <button class="step center shadow" @mousedown.prevent @click.prevent="changeBy(LENGTH_STEP)"><span class="mask-icon plus-icon"></span></button>
+        <button class="btn next center shadow">Следующий шаг</button>
+      </template>
+    </div>
+    <div v-if="keypad" class="keypad">
+      <button
+        v-for="key in KEYS"
+        :key="key"
+        class="key center"
+        :class="{ 'btn next': key === 'next' }"
+        @click.prevent="press(key)"
+      >
+        <span v-if="KEY_ICONS[key]" class="mask-icon" :class="KEY_ICONS[key]"></span>
+        <template v-else>{{ key === 'next' ? 'Следующий шаг' : key }}</template>
+      </button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
   </form>
@@ -44,6 +60,10 @@ import { MIN_LENGTH } from '~/ceiling/geometry'
 // ====== Определение данных ======
 // шаг 1 см
 const LENGTH_STEP = 1
+// своя клавиатура на телефоне, как в Easy Ceiling: системная сдвигает страницу
+const KEYS = ['1', '2', '3', 'erase', '4', '5', '6', 'minus', '7', '8', '9', 'plus', ',', '0', 'next']
+const KEY_ICONS = { erase: 'erase-icon', minus: 'minus-icon', plus: 'plus-icon' }
+const MAX_TEXT = 7
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -57,15 +77,19 @@ const emit = defineEmits(['apply', 'close', 'select'])
 const input = ref(null)
 const list = ref(null)
 const text = ref('')
+const keypad = window.matchMedia('(pointer: coarse)').matches
+// первая цифра заменяет старый размер, как при выделенном тексте
+let fresh = true
 
 // ====== Работа с полем ======
-// без замера поле пустое: размер по сетке условный
+// без замера поле пустое: размер по наброску условный
 function reset() {
   text.value = props.value ? formatNumber(roundLength(props.value)) : ''
+  fresh = true
+  if (keypad) return
   nextTick(() => {
     input.value.focus()
-    // на телефоне не выделяем: выглядит как будто предлагают скопировать
-    if (window.matchMedia('(pointer: fine)').matches) input.value.select()
+    input.value.select()
     console.log('focus', props.title)
   })
 }
@@ -74,6 +98,24 @@ function changeBy(delta) {
   const next = parseNumber(text.value) + delta
   if (isNaN(next) || next < MIN_LENGTH) return
   text.value = formatNumber(roundLength(next))
+  fresh = false
+}
+
+// ====== Своя клавиатура ======
+function press(key) {
+  console.log('key', key)
+  if (key === 'next') return submit()
+  if (key === 'minus') return changeBy(-LENGTH_STEP)
+  if (key === 'plus') return changeBy(LENGTH_STEP)
+  const current = fresh ? '' : text.value
+  fresh = false
+  if (key === 'erase') {
+    text.value = current.slice(0, -1)
+    return
+  }
+  if (key === ',' && current.includes(',')) return
+  if (current.length >= MAX_TEXT) return
+  text.value = current + (key === ',' && !current ? '0,' : key)
 }
 
 function submit() {
@@ -146,11 +188,13 @@ onMounted(() => {
         flex-wrap: wrap
         align-items: center
         gap: 8px
+    // подпись над полем, «см» внутри поля справа
     .field
+        position: relative
         display: flex
         flex: 0 0 100%
-        align-items: center
-        gap: 8px
+        flex-direction: column
+        gap: 4px
         min-width: 0
     .name
         font-weight: 600
@@ -159,9 +203,17 @@ onMounted(() => {
     .value
         width: 100%
         height: 44px
-        padding: 0 10px
+        padding: 0 40px 0 12px
         border: 1px solid var(--border-color)
         border-radius: 8px
+    .unit
+        position: absolute
+        right: 12px
+        bottom: 0
+        display: flex
+        align-items: center
+        height: 44px
+        color: var(--disabled-color)
     .step
         width: 44px
         height: 44px
@@ -180,6 +232,24 @@ onMounted(() => {
         border-radius: 8px
         color: var(--main-color)
         background: var(--bg-color)
+    .keypad
+        display: grid
+        grid-template-columns: repeat(4, 1fr)
+        gap: 8px
+        margin-top: 10px
+    .key
+        height: 48px
+        border: 1px solid var(--border-color)
+        border-radius: 8px
+        font-size: 1.25rem
+        color: var(--text-color)
+        background: var(--card-color)
+        &.next
+            grid-column: span 2
+            border: none
+            font-size: 0.875rem
+            color: var(--btn-text-color)
+            background: var(--accent-color)
     .error
         margin-top: 8px
         color: var(--error-color)

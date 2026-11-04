@@ -13,8 +13,6 @@
       @touchmove="onTouchMove"
     >
       <v-layer>
-        <v-shape :config="gridConfig" />
-
         <template v-if="ceiling.closed">
           <v-line :config="fillConfig" />
           <v-line
@@ -65,7 +63,7 @@
 
 <script setup>
 import VueKonva from 'vue-konva'
-import { GRID_STEP, edgeId, snapToGrid } from '~/ceiling/geometry'
+import { edgeId, roundPoint } from '~/ceiling/geometry'
 
 // ====== Определение констант и данных ======
 const props = defineProps({
@@ -83,7 +81,6 @@ if (!vueApp.component('v-stage')) vueApp.use(VueKonva)
 // цвета берём из colors.sass
 const css = getComputedStyle(document.documentElement)
 const COLORS = {
-  grid: css.getPropertyValue('--grid-color'),
   fill: css.getPropertyValue('--secondary-color'),
   wall: css.getPropertyValue('--main-color'),
   selected: css.getPropertyValue('--accent-color'),
@@ -96,6 +93,8 @@ const COLORS = {
 const DASH = [10, 6]
 const FONT = 'Montserrat, Arial, sans-serif'
 const START_SCALE = 0.8
+// на сколько px можно промахнуться мимо угла
+const NEAR_DISTANCE = 20
 // как $bp-pc в adaptive.sass
 const BP_PC = 1024
 const MIN_SCALE = 0.05
@@ -127,31 +126,6 @@ const stageConfig = computed(() => ({
   draggable: true,
   dragDistance: 12
 }))
-
-// сетка
-const gridConfig = computed(() => {
-  const { scale, x, y } = view.value
-  const { width, height } = size.value
-  const step = GRID_STEP * scale
-  return {
-    stroke: COLORS.grid,
-    strokeWidth: 1,
-    listening: false,
-    sceneFunc(context, shape) {
-      if (step < 6) return
-      context.beginPath()
-      for (let lineX = Math.ceil(-x / step) * step; lineX < width - x; lineX += step) {
-        context.moveTo(lineX, -y)
-        context.lineTo(lineX, height - y)
-      }
-      for (let lineY = Math.ceil(-y / step) * step; lineY < height - y; lineY += step) {
-        context.moveTo(-x, lineY)
-        context.lineTo(width - x, lineY)
-      }
-      context.strokeShape(shape)
-    }
-  }
-})
 
 // заливка
 const fillConfig = computed(() => ({
@@ -208,7 +182,7 @@ function edgeLabel(edge) {
   const id = edgeId(edge)
   const a = pointOf(edge.from)
   const b = pointOf(edge.to)
-  // без замера подписи нет: размер по сетке условный, стена и так пунктиром
+  // без замера подписи нет: размер по наброску условный, стена и так пунктиром
   if (!edge.fixed && !edge.entered) return null
   const text = `${formatNumber(roundLength(edge.length))} см`
   // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
@@ -253,6 +227,7 @@ const contourConfig = computed(() => ({
   points: flatPoints.value,
   stroke: COLORS.wall,
   strokeWidth: 2.5,
+  dash: DASH,
   listening: false
 }))
 
@@ -261,7 +236,7 @@ const previewConfig = computed(() => {
   const { corners } = props.ceiling
   if (!hover.value || !corners.length) return null
   const last = points.value[points.value.length - 1]
-  const next = snapToGrid(hover.value)
+  const next = roundPoint(hover.value)
   return {
     points: [last.x, last.y, next.x * view.value.scale, next.y * view.value.scale],
     stroke: COLORS.preview,
@@ -271,32 +246,38 @@ const previewConfig = computed(() => {
   }
 })
 
-// углы и буквы
+// углы, буква внутри кружка
 const cornerItems = computed(() => props.ceiling.corners.map((corner, i) => {
   const { x, y } = points.value[i]
+  const active = activeCorners.value.includes(corner.id)
+  const radius = active ? 15 : 13
   return {
     id: corner.id,
     circle: {
       x,
       y,
-      radius: activeCorners.value.includes(corner.id) ? 11 : 8,
-      fill: activeCorners.value.includes(corner.id) ? COLORS.corner : COLORS.label,
+      radius,
+      fill: active ? COLORS.corner : COLORS.label,
       stroke: COLORS.wall,
       strokeWidth: 2.5,
-      // чтобы попасть пальцем, на готовом чертеже меньше, чтобы не мешать стенам
-      hitStrokeWidth: props.ceiling.closed ? 20 : 40,
+      // кружок и так крупный, запас небольшой: рядом с углом можно поставить следующий
+      hitStrokeWidth: 16,
       listening: i === 0 || props.ceiling.closed,
       draggable: props.ceiling.closed,
       dragDistance: 12
     },
     text: {
-      x: x + 10,
-      y: y - 26,
+      x: x - radius,
+      y: y - radius,
+      width: radius * 2,
+      height: radius * 2,
       text: corner.id,
       fontSize: 14,
       fontFamily: FONT,
       fontStyle: '600',
-      fill: COLORS.wall,
+      fill: active ? COLORS.label : COLORS.wall,
+      align: 'center',
+      verticalAlign: 'middle',
       listening: false
     }
   }
@@ -404,13 +385,13 @@ function onStageClick(event) {
     return
   }
   const position = pointerPosition()
-  const { corners } = props.ceiling
-  const place = snapToGrid(position)
-  // точка попала на первый угол - замыкаем контур
-  if (corners.length && place.x === corners[0].x && place.y === corners[0].y) {
-    emit('close')
-    return
-  }
+  const { scale } = view.value
+  // рядом с первым углом - замыкаем контур, рядом с другим - не ставим точку поверх
+  const near = props.ceiling.corners.findIndex((corner) =>
+    Math.hypot(corner.x - position.x, corner.y - position.y) * scale < NEAR_DISTANCE)
+  console.log('near', near)
+  if (near === 0) emit('close')
+  if (near !== -1) return
   emit('place', position)
 }
 
@@ -421,9 +402,9 @@ function onCornerClick(event, index) {
   else if (index === 0) emit('close')
 }
 
-// угол ходит по сетке
+// угол ходит свободно, с точностью до 1 см
 function onCornerDrag(event, index) {
-  const place = snapToGrid(pointerPosition())
+  const place = roundPoint(pointerPosition())
   console.log(place)
   emit('move', props.ceiling.corners[index].id, place)
   event.target.position({ x: place.x * view.value.scale, y: place.y * view.value.scale })

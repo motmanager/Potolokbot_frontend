@@ -5,7 +5,6 @@ import { segmentsIntersect } from '../../utils/segmentsIntersect.js'
 // размеры в см
 
 // ====== Определение констант ======
-export const GRID_STEP = 50
 export const MIN_LENGTH = 5
 export const MAX_LENGTH = 10000
 

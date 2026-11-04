@@ -1,8 +1,8 @@
 <template>
   <div class="ceiling-editor" :class="{ editing: edge, closed: ceiling.closed }">
     <header class="top center">
-      <button class="icon center" @click="close"><span class="mask-icon close-icon"></span></button>
-      <h2 class="title">Схема комнаты</h2>
+      <button class="icon center" @click="close"><span class="mask-icon arrow-icon back"></span></button>
+      <h2 class="title">{{ ceiling.title }}</h2>
       <button class="icon help center" @click="hintsOpen = true">?</button>
     </header>
 
@@ -45,8 +45,6 @@
       />
 
       <footer class="bottom">
-        <button class="icon center shadow" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
-        <button class="btn secondary center shadow" @click="runAndFit(draft.reset)">Сброс</button>
         <button class="btn done center shadow" :disabled="!measured || errors.length > 0" @click="finish">Готово</button>
       </footer>
     </div>
@@ -65,19 +63,21 @@
         @move="draft.moveCorner"
         @move-end="onMoveEnd"
       >
-        <button v-if="selectedWall" class="btn secondary tool center shadow" @click="addCorner">Добавить угол</button>
-        <button v-else-if="selectedCorner" class="btn secondary tool center shadow" @click="removeCorner">Удалить угол</button>
+        <button v-if="selectedCorner" class="btn secondary tool center shadow" @click="removeCorner">Удалить угол</button>
       </ceiling-drawing-stage>
       <button
-        v-if="diagonalList.length && !selectedWall && !selectedCorner"
+        v-if="diagonalList.length && !selectedCorner"
         class="btn secondary action toggle center shadow"
         @click="toggleDiagonals"
       >
         {{ diagonalsOpen ? 'Скрыть диагонали' : 'Диагонали' }}
       </button>
-      <div class="zoom">
-        <button class="icon center shadow" @click="stage.zoom(1.25)"><span class="mask-icon plus-icon"></span></button>
-        <button class="icon center shadow" @click="stage.zoom(0.8)"><span class="mask-icon minus-icon"></span></button>
+      <div class="tools shadow">
+        <button class="icon center" :disabled="ceiling.corners.length < 2" @click="stage.fit()"><span class="mask-icon fit-icon"></span></button>
+        <button class="icon center" @click="stage.zoom(1.25)"><span class="mask-icon plus-icon"></span></button>
+        <button class="icon center" @click="stage.zoom(0.8)"><span class="mask-icon minus-icon"></span></button>
+        <button class="icon center" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
+        <button class="icon delete center" :disabled="!ceiling.corners.length" @click="runAndFit(draft.reset)"><span class="mask-icon trash-icon"></span></button>
       </div>
     </div>
 
@@ -110,7 +110,6 @@ const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
   diagonalsOpen.value || diagonal.entered || edgeId(diagonal) === selected.value))
 
 const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
-const selectedWall = computed(() => ceiling.value.walls.some((item) => edgeId(item) === selected.value))
 const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))
 
 // выбранная стена или диагональ
@@ -141,7 +140,7 @@ const statusText = computed(() => {
     if (!measured.value) return 'Введите замеры всех стен. Стены без замера нарисованы пунктиром'
     return 'Нажмите на стену или угол. Угол можно перетащить'
   }
-  if (!corners.length) return 'Нажимайте на пересечения сетки, чтобы отметить углы комнаты'
+  if (!corners.length) return 'Нажимайте на поле, чтобы отметить углы комнаты'
   if (corners.length < 4) return 'Отметьте ещё углы. Комнате нужно минимум четыре'
   return 'Нажмите на точку «A», чтобы замкнуть контур'
 })
@@ -189,17 +188,6 @@ function onMoveEnd() {
   selectEdge('')
   draft.endMove()
   nextTick(() => stage.value.fit())
-}
-
-function addCorner() {
-  const wallId = selected.value
-  console.log('value', wallId)
-  const error = draft.addCorner(wallId)
-  if (error) {
-    closeError.value = error
-    return
-  }
-  runAndFit(() => {})
 }
 
 function removeCorner() {
@@ -292,6 +280,9 @@ onBeforeUnmount(() => {
             left: 8px
             color: inherit
             background: none
+        // стрелка назад
+        .back
+            transform: rotate(180deg)
         .help
             right: 8px
             left: auto
@@ -315,12 +306,13 @@ onBeforeUnmount(() => {
         display: contents
     .wall-input, .bottom
         order: 1
-    // колонки по левому краю, сноска под ними
+    // колонки по центру, сноска под ними
     .summary
         display: grid
         grid-template-columns: repeat(3, 1fr)
         gap: 4px 8px
         padding: 8px 12px
+        text-align: center
         .name
             display: block
             font-size: 0.875rem
@@ -375,12 +367,23 @@ onBeforeUnmount(() => {
         flex: 1
         min-height: 0
         overflow: hidden
-    .zoom
+    // инструменты столбиком справа, как в Easy Ceiling
+    .tools
         position: absolute
+        top: 50%
         right: 8px
-        bottom: 8px
         display: flex
-        gap: 8px
+        flex-direction: column
+        gap: 4px
+        padding: 4px
+        border-radius: 26px
+        background: var(--card-color)
+        transform: translateY(-50%)
+        .icon
+            border-radius: 50%
+            background: none
+        .delete
+            color: var(--error-color)
     .bottom
         display: flex
         align-items: center
@@ -432,7 +435,7 @@ onBeforeUnmount(() => {
             font-size: 0.875rem
         // при вводе чертёж сверху, поле снизу
         &.editing
-            .zoom, .toggle, .summary, .status, .bottom
+            .tools, .toggle, .summary, .status, .bottom
                 display: none
             .wall-input
                 margin-bottom: 8px
