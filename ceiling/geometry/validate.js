@@ -20,8 +20,9 @@ export function validate(ceiling) {
   const mismatch = walls.filter((wall) => wall.mismatch)
   if (mismatch.length) {
     const names = mismatch.map((wall) => `${wall.from}${wall.to}`).join(' и ')
+    const text = mismatch.length > 1 ? `стены ${names} нарисованы` : `стена ${names} нарисована`
     errors.push({
-      message: `Размеры не сходятся, стены ${names} нарисованы не по замеру. Проверьте замеры`,
+      message: `Размеры не сходятся, ${text} не по замеру. Проверьте замеры`,
       walls: []
     })
   }

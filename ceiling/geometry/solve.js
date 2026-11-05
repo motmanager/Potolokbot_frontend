@@ -16,6 +16,9 @@ const RIGHT_ANGLE_TOLERANCE = 25 * Math.PI / 180
 // стена короче этого на наброске не задаёт направление: её углы почти в одной точке
 const SHORT_WALL = 30
 
+// стена нарисована не по замеру, если разница больше, см
+const MISMATCH_LENGTH = 1
+
 // ====== Углы наброска ======
 const normalize = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle))
 
@@ -218,7 +221,9 @@ function solveShape(ceiling) {
     const pair = [(k + n - 1) % n, k]
     const closing = fit(ceiling, sketch, [...new Set([...free, ...pair])])
     if (!closing) continue
-    const mismatch = pair.filter((i) => walls[i].fixed).map((i) => edgeId(walls[i]))
+    // жёлтыми только стены, которые на чертеже действительно не равны замеру
+    const drawn = (i) => Math.hypot(closing.corners[(i + 1) % n].x - closing.corners[i].x, closing.corners[(i + 1) % n].y - closing.corners[i].y)
+    const mismatch = pair.filter((i) => walls[i].fixed && Math.abs(drawn(i) - walls[i].length) > MISMATCH_LENGTH).map((i) => edgeId(walls[i]))
     if (closing.drift < RIGHT_ANGLE_ACCURACY) return { corners: closing.corners, mismatch }
     if (!closest) closest = { corners: closing.corners, mismatch }
   }
