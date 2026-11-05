@@ -5,6 +5,8 @@ const ACCURACY = 0.01
 const ANGLE_WEIGHT = 20
 // почти прямой угол считаем прямым, как Easy Ceiling
 const RIGHT_ANGLE_TOLERANCE = 25 * Math.PI / 180
+// стена короче этого на наброске не задаёт направление: её углы почти в одной точке
+const SHORT_WALL = 30
 
 // ====== Углы наброска ======
 const normalize = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle))
@@ -16,23 +18,45 @@ function direction(corners, i) {
 }
 
 // направления стен как на наброске, почти прямые углы становятся прямыми
-function sketchDirections(corners) {
+function sketchDirections(corners, walls) {
   const n = corners.length
   // поворот на каждом углу: от предыдущей стены к следующей
   const turns = corners.map((_, i) => normalize(direction(corners, i) - direction(corners, (i + n - 1) % n)))
-  const isRight = (turn) => Math.abs(Math.abs(turn) - Math.PI / 2) < RIGHT_ANGLE_TOLERANCE
-  const snapped = turns.map((turn) => (isRight(turn) ? Math.sign(turn) * Math.PI / 2 : turn))
+  const right = turns.map((turn) => Math.abs(Math.abs(turn) - Math.PI / 2) < RIGHT_ANGLE_TOLERANCE)
+  const snapped = turns.map((turn, i) => (right[i] ? Math.sign(turn) * Math.PI / 2 : turn))
+
+  // короткая стена на наброске повёрнута случайно (её углы почти в одной точке),
+  // поэтому смотрим на её соседей: ниша или ступенька, как в Easy Ceiling стена встаёт под прямым углом
+  walls.forEach((wall, i) => {
+    if (wall.length >= SHORT_WALL) return
+    const next = (i + 1) % n
+    const both = turns[i] + turns[next]
+    const quarter = Math.PI / 2
+    // соседи смотрят в разные стороны - ниша, оба угла поворачивают в одну сторону
+    if (Math.abs(Math.abs(both) - Math.PI) < RIGHT_ANGLE_TOLERANCE) {
+      snapped[i] = snapped[next] = Math.sign(both) * quarter
+    // соседи параллельны - ступенька, углы поворачивают в разные стороны
+    } else if (Math.abs(both) < RIGHT_ANGLE_TOLERANCE) {
+      snapped[i] = Math.sign(turns[i]) * quarter
+      snapped[next] = -snapped[i]
+    } else return
+    console.log('short wall', wall.from + wall.to, snapped[i])
+    right[i] = right[next] = true
+  })
 
   // контур замыкается, только если повороты в сумме дают полный оборот:
   // остаток делим между углами, которые не выпрямляли
   const full = Math.round(turns.reduce((sum, turn) => sum + turn, 0) / (2 * Math.PI)) * 2 * Math.PI
   const rest = full - snapped.reduce((sum, turn) => sum + turn, 0)
-  const free = turns.filter((turn) => !isRight(turn)).length
-  const fixed = snapped.map((turn, i) => turn + (free ? (isRight(turns[i]) ? 0 : rest / free) : rest / n))
+  const free = right.filter((item) => !item).length
+  const fixed = snapped.map((turn, i) => turn + (free ? (right[i] ? 0 : rest / free) : rest / n))
 
-  const result = [direction(corners, 0)]
-  for (let i = 1; i < n; i++) result.push(result[i - 1] + fixed[i])
-  return result
+  // направление берём от самой длинной стены: у короткой оно случайное
+  const relative = [0]
+  for (let i = 1; i < n; i++) relative.push(relative[i - 1] + fixed[i])
+  const longest = walls.reduce((best, wall, i) => (wall.length > walls[best].length ? i : best), 0)
+  const shift = direction(corners, longest) - relative[longest]
+  return relative.map((value) => value + shift)
 }
 
 // ====== Линейная алгебра ======
@@ -66,7 +90,7 @@ export function solve(ceiling) {
   // неизвестные: направление каждой стены и длина каждой неизмеренной стены (в долях от наброска)
   const free = walls.map((wall, i) => (wall.fixed ? -1 : i)).filter((i) => i !== -1)
   const slot = new Map(free.map((wall, k) => [wall, n + k]))
-  const target = [...sketchDirections(corners), ...free.map(() => 1)]
+  const target = [...sketchDirections(corners, walls), ...free.map(() => 1)]
   const weight = target.map((_, k) => (k < n ? ANGLE_WEIGHT : 1))
   const x = [...target]
   const length = (i) => (slot.has(i) ? walls[i].length * x[slot.get(i)] : walls[i].length)
