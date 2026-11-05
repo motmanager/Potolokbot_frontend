@@ -7,6 +7,8 @@ import { segmentsIntersect } from '../../utils/segmentsIntersect.js'
 // ====== Определение констант ======
 export const MIN_LENGTH = 5
 export const MAX_LENGTH = 10000
+// как в Easy Ceiling, комната может быть треугольной
+export const MIN_CORNERS = 3
 
 // id стены, например A-B
 export const edgeId = (edge) => `${edge.from}-${edge.to}`

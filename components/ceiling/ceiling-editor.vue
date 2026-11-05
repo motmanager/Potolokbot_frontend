@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { roomDiagonals, edgeId } from '~/ceiling/geometry'
+import { MIN_CORNERS, roomDiagonals, edgeId } from '~/ceiling/geometry'
 
 // ====== Определение данных ======
 const HINTS_KEY = 'ceiling-hints-seen'
@@ -141,7 +141,7 @@ const statusText = computed(() => {
     return 'Нажмите на стену или угол. Угол можно перетащить'
   }
   if (!corners.length) return 'Нажимайте на поле, чтобы отметить углы комнаты'
-  if (corners.length < 4) return 'Отметьте ещё углы. Комнате нужно минимум четыре'
+  if (corners.length < MIN_CORNERS) return 'Отметьте ещё углы. Комнате нужно минимум три'
   return 'Нажмите на точку «A», чтобы замкнуть контур'
 })
 
@@ -171,9 +171,10 @@ function onPlace(point) {
 }
 
 function onClose() {
-  closeError.value = draft.close()
-  console.log('close error', closeError.value)
-  if (closeError.value) return
+  const error = draft.close()
+  console.log('close error', error)
+  // мало углов: подсказка над чертежом уже об этом говорит, второй раз не пишем
+  if (error) return
   // сразу вводим длину первой стены
   selectEdge(edgeId(ceiling.value.walls[0]))
   nextTick(() => stage.value.fit())

@@ -1,7 +1,7 @@
 import { calcDistance } from '../../utils/calcDistance.js'
 import { formatNumber } from '../../utils/formatNumber.js'
 import { roundLength } from '../../utils/roundLength.js'
-import { MAX_LENGTH, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
+import { MAX_LENGTH, MIN_CORNERS, MIN_LENGTH, buildWalls, edgeId } from './measure.js'
 import { solve } from './solve.js'
 import { validate } from './validate.js'
 
@@ -21,7 +21,7 @@ export function addPoint(ceiling, point) {
 
 export function closeContour(ceiling) {
   const { corners } = ceiling
-  if (corners.length < 4) return { ceiling, error: 'Отметьте ещё углы. Комнате нужно минимум четыре' }
+  if (corners.length < MIN_CORNERS) return { ceiling, error: 'Отметьте ещё углы. Комнате нужно минимум три' }
   return { ceiling: { ...ceiling, walls: buildWalls(corners), closed: true }, error: '' }
 }
 
@@ -51,7 +51,7 @@ export function addCorner(ceiling, wallId) {
 }
 
 export function removeCorner(ceiling, cornerId) {
-  if (ceiling.corners.length <= 4) return { ceiling, error: 'Комнате нужно минимум четыре угла' }
+  if (ceiling.corners.length <= MIN_CORNERS) return { ceiling, error: 'Комнате нужно минимум три угла' }
   const corners = ceiling.corners.filter((corner) => corner.id !== cornerId)
   const walls = buildWalls(corners, ceiling.walls)
   // убираем диагонали этого угла и те, что теперь совпали со стеной
