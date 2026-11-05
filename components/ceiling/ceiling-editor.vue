@@ -57,6 +57,7 @@
         :selected="selected"
         :diagonals="visibleDiagonals"
         :error-walls="errorWalls"
+        :computed-diagonals="countable"
         @place="onPlace"
         @close="onClose"
         @select="selectEdge"
@@ -107,12 +108,13 @@ const inputError = ref('')
 const closeError = ref('')
 
 // ====== Вычисляемые значения ======
-const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
-const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
-  diagonalsOpen.value || diagonal.entered || edgeId(diagonal) === selected.value))
-
 // все стены измерены и сошлись: только тогда считаем площадь и периметр
 const countable = computed(() => measured.value && !ceiling.value.walls.some((wall) => wall.mismatch))
+
+const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
+// когда все стены измерены, диагонали видны всегда, как в Easy Ceiling
+const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
+  diagonalsOpen.value || countable.value || diagonal.entered || edgeId(diagonal) === selected.value))
 
 const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
 const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))

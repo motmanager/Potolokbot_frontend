@@ -70,7 +70,9 @@ const props = defineProps({
   ceiling: { type: Object, required: true },
   selected: { type: String, default: '' },
   diagonals: { type: Array, default: () => [] },
-  errorWalls: { type: Array, default: () => [] }
+  errorWalls: { type: Array, default: () => [] },
+  // все стены измерены: у невведённых диагоналей показываем рассчитанную длину
+  computedDiagonals: { type: Boolean, default: false }
 })
 const emit = defineEmits(['place', 'close', 'select', 'move-start', 'move', 'move-end'])
 
@@ -187,8 +189,10 @@ function edgeLabel(edge) {
   const id = edgeId(edge)
   const a = pointOf(edge.from)
   const b = pointOf(edge.to)
-  // без замера подписи нет: размер по наброску условный, стена и так пунктиром
-  if (!edge.fixed && !edge.entered) return null
+  // без замера подписи нет: размер по наброску условный, стена и так пунктиром.
+  // Диагональ, как в Easy Ceiling, считается по введённым стенам и подписана серым
+  const calculated = edge.entered === false && props.computedDiagonals
+  if (!edge.fixed && !edge.entered && !calculated) return null
   // как в Easy Ceiling только число: так подписаны и короткие стены
   const text = formatNumber(roundLength(edge.length))
   // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
@@ -222,9 +226,9 @@ function edgeLabel(edge) {
   }
 }
 
-// подписи стен и введённых диагоналей
+// подписи стен и диагоналей
 const labels = computed(() => [
-  ...props.diagonals.filter((diagonal) => diagonal.entered),
+  ...props.diagonals,
   ...props.ceiling.walls
 ].map(edgeLabel).filter(Boolean))
 

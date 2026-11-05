@@ -9,7 +9,7 @@ const ANGLE_WEIGHT = 20
 const RIGHT_WEIGHT = 10000
 // небольшое притяжение к наброску, чтобы чертёж не поворачивался целиком
 const ROTATION_WEIGHT = 0.01
-// прямой угол отклонился больше - размеры с прямыми углами не сходятся
+// прямой угол отклонился больше - он уже не прямой
 const RIGHT_ANGLE_ACCURACY = 0.5 * Math.PI / 180
 // почти прямой угол считаем прямым, как Easy Ceiling
 const RIGHT_ANGLE_TOLERANCE = 25 * Math.PI / 180
@@ -151,23 +151,29 @@ function fit(ceiling, sketch, loose) {
   }
   const error = () => Math.max(...constraints().values.map(Math.abs))
 
-  for (let step = 0; step < ITERATIONS; step++) {
+  // nearest: ближайшая к наброску точка, где ограничения выполнены (в линейном приближении);
+  // если так застряли - просто дотягиваем размеры от текущей точки, меняя её как можно меньше
+  let nearest = true
+  for (let step = 0; step < ITERATIONS * 2; step++) {
     const { values, rows } = constraints()
     const before = Math.max(...values.map(Math.abs))
     if (before < ACCURACY) break
-    // ближайшая к наброску точка, где ограничения выполнены (в линейном приближении)
+    if (step === ITERATIONS) nearest = false
+    const base = nearest ? target : x
     const scaled = rows.map((row) => inverse.map((column) => column.reduce((sum, value, k) => sum + value * row[k], 0)))
     const matrix = rows.map((row) => scaled.map((other) => other.reduce((sum, value, k) => sum + value * row[k], 0)))
-    const right = rows.map((row, r) => -values[r] - row.reduce((sum, value, k) => sum + value * (target[k] - x[k]), 0))
+    const right = rows.map((row, r) => -values[r] - row.reduce((sum, value, k) => sum + value * (base[k] - x[k]), 0))
     const mu = solveLinear(matrix, right)
     if (!mu) return null
     const start = [...x]
-    const next = x.map((value, k) => target[k] + scaled.reduce((sum, row, r) => sum + row[k] * mu[r], 0))
+    const next = x.map((value, k) => base[k] + scaled.reduce((sum, row, r) => sum + row[k] * mu[r], 0))
     // шаг не уменьшил ошибку - идём осторожнее, вдвое короче
-    for (let part = 1; part > 1e-3; part /= 2) {
+    let reduced = false
+    for (let part = 1; part > 1e-3 && !reduced; part /= 2) {
       for (let k = 0; k < x.length; k++) x[k] = start[k] + (next[k] - start[k]) * part
-      if (error() < before) break
+      reduced = error() < before
     }
+    if (!reduced) nearest = false
   }
   if (error() >= ACCURACY) return null
 
@@ -188,7 +194,9 @@ function fit(ceiling, sketch, loose) {
 // ====== Построение по размерам ======
 // { corners, mismatch } или null, если размеры не сходятся.
 // Пересечение стен не мешает, как в Easy Ceiling: ошибка видна на чертеже.
-// Без диагоналей прямые углы остаются прямыми: если размеры с ними не сходятся,
+// Прямые углы держатся, пока размеры позволяют, иначе углы наклоняются, как в Easy Ceiling.
+// Если такой комнаты быть не может (например, стена длиннее всех остальных вместе)
+// или почти прямой угол пришлось бы повернуть сильнее RIGHT_ANGLE_TOLERANCE,
 // контур замыкают две стены у одного угла, они в mismatch (рисуются без своего замера, как в Easy Ceiling)
 export function solve(ceiling) {
   const { corners, walls, diagonals } = ceiling
@@ -198,18 +206,23 @@ export function solve(ceiling) {
 
   const result = fit(ceiling, sketch, free)
   console.log('solve', result && result.drift)
-  // диагонали задают настоящие углы: им можно менять и прямые
-  if (diagonals.length) return result && { corners: result.corners, mismatch: [] }
-  if (result && result.drift < RIGHT_ANGLE_ACCURACY) return { corners: result.corners, mismatch: [] }
+  // с диагоналями невозможный размер - ошибка ввода, её покажет поле
+  if (diagonals.length || (result && result.drift < RIGHT_ANGLE_TOLERANCE)) {
+    return result && { corners: result.corners, mismatch: [] }
+  }
 
-  // как в Easy Ceiling сначала пробуем стены у угла A, потом у следующих углов
+  // как в Easy Ceiling сначала пробуем стены у угла A, потом у следующих углов,
+  // лучше тот вариант, где прямые углы остались прямыми
+  let closest = null
   for (let k = 0; k < n; k++) {
     const pair = [(k + n - 1) % n, k]
     const closing = fit(ceiling, sketch, [...new Set([...free, ...pair])])
-    if (!closing || closing.drift >= RIGHT_ANGLE_ACCURACY) continue
+    if (!closing) continue
     const mismatch = pair.filter((i) => walls[i].fixed).map((i) => edgeId(walls[i]))
-    console.log('mismatch', mismatch)
-    return { corners: closing.corners, mismatch }
+    if (closing.drift < RIGHT_ANGLE_ACCURACY) return { corners: closing.corners, mismatch }
+    if (!closest) closest = { corners: closing.corners, mismatch }
   }
-  return result && { corners: result.corners, mismatch: [] }
+  console.log('mismatch', closest && closest.mismatch)
+  // прямых углов не удержать никак - тогда лучше наклонённые углы, чем жёлтые стены
+  return result ? { corners: result.corners, mismatch: [] } : closest
 }
