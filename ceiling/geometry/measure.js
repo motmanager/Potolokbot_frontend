@@ -17,20 +17,22 @@ export const edgeId = (edge) => `${edge.from}-${edge.to}`
 // ====== Создание чертежа ======
 // стены по углам, последний угол соединяем с первым
 // введённые стены из previous остаются как есть
-export function buildWalls(corners, previous = []) {
+// mismatch - стены из этого списка не сошлись с остальными размерами
+export function buildWalls(corners, previous = [], mismatch = []) {
   return corners.map((corner, i) => {
     const next = corners[(i + 1) % corners.length]
     const known = previous.find((wall) => wall.from === corner.id && wall.to === next.id)
-    if (known && known.fixed) return known
-    return { from: corner.id, to: next.id, length: calcDistance(corner, next), fixed: false }
+    const wall = known && known.fixed ? known : { from: corner.id, to: next.id, length: calcDistance(corner, next), fixed: false }
+    return { ...wall, mismatch: mismatch.includes(edgeId(wall)) }
   })
 }
 
-export function createEmpty() {
-  return { id: 'c1', title: 'Потолок 1', corners: [], walls: [], diagonals: [], closed: false, options: {} }
+// номер потолка на странице: Потолок 1, Потолок 2...
+export function createEmpty(number = 1) {
+  return { id: `c${number}`, number, title: `Потолок ${number}`, corners: [], walls: [], diagonals: [], closed: false, options: {} }
 }
 
-export function createRectangle(length, width) {
+export function createRectangle(length, width, number = 1) {
   const corners = [
     { id: 'A', x: 0, y: 0 },
     { id: 'B', x: 0, y: width },
@@ -40,7 +42,7 @@ export function createRectangle(length, width) {
   // длину и ширину ввели в полях, эти стены считаются введёнными
   const walls = buildWalls(corners).map((wall) => ({ ...wall, fixed: true }))
   // по длине и ширине углы прямые, диагонали не нужны, пока форма прямоугольная
-  return { ...createEmpty(), corners, walls, closed: true, fromSizes: true }
+  return { ...createEmpty(number), corners, walls, closed: true, fromSizes: true }
 }
 
 // ====== Диагонали ======

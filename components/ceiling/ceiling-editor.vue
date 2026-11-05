@@ -8,10 +8,10 @@
 
     <div class="panel">
       <div class="summary shadow">
-        <p class="item"><span class="name">Площадь</span>{{ measured ? `${formatNumber(summary.area)} м²${missingDiagonals ? '*' : ''}` : '—' }}</p>
-        <p class="item"><span class="name">Периметр</span>{{ measured ? `${formatNumber(summary.perimeter)} м` : '—' }}</p>
+        <p class="item"><span class="name">Площадь</span>{{ countable ? `${formatNumber(summary.area)} м²${missingDiagonals ? '*' : ''}` : '—' }}</p>
+        <p class="item"><span class="name">Периметр</span>{{ countable ? `${formatNumber(summary.perimeter)} м` : '—' }}</p>
         <p class="item"><span class="name">Углы</span>{{ ceiling.corners.length }}</p>
-        <p v-if="measured && missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
+        <p v-if="countable && missingDiagonals" class="note">* Расчёт приблизительный: не введены диагонали</p>
       </div>
       <p class="status shadow">{{ statusText }}</p>
       <p v-if="closeError" class="problem shadow">{{ closeError }}</p>
@@ -78,11 +78,12 @@
         <button class="icon center" @click="stage.zoom(1.25)"><span class="mask-icon plus-icon"></span></button>
         <button class="icon center" @click="stage.zoom(0.8)"><span class="mask-icon minus-icon"></span></button>
         <button class="icon center" :disabled="!canUndo" @click="runAndFit(draft.undo)"><span class="mask-icon undo-icon"></span></button>
-        <button class="icon delete center" :disabled="!ceiling.corners.length" @click="runAndFit(draft.reset)"><span class="mask-icon trash-icon"></span></button>
+        <button class="icon delete center" :disabled="!ceiling.corners.length" @click="clearOpen = true"><span class="mask-icon trash-icon"></span></button>
       </div>
     </div>
 
     <ceiling-hints v-if="hintsOpen" @close="closeHints" />
+    <ceiling-confirm-dialog v-if="clearOpen" text="Очистить экран?" @yes="clearScreen" @no="clearOpen = false" />
   </div>
 </template>
 
@@ -101,14 +102,17 @@ const stage = ref(null)
 const selected = ref('')
 const diagonalsOpen = ref(false)
 const hintsOpen = ref(false)
+const clearOpen = ref(false)
 const inputError = ref('')
 const closeError = ref('')
-const opened = ceiling.value
 
 // ====== Вычисляемые значения ======
 const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceiling.value) : []))
 const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
   diagonalsOpen.value || diagonal.entered || edgeId(diagonal) === selected.value))
+
+// все стены измерены и сошлись: только тогда считаем площадь и периметр
+const countable = computed(() => measured.value && !ceiling.value.walls.some((wall) => wall.mismatch))
 
 const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
 const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))
@@ -223,11 +227,16 @@ function goNext(current = selected.value) {
 }
 
 // ====== Кнопки редактора ======
-// Кнопки (закрыть, готово)
+// Кнопки (назад, очистить экран, готово)
+// назад: чертёж и замеры сохраняются, потолок виден на странице
 function close() {
-  if (ceiling.value !== opened && !window.confirm('Закрыть схему без сохранения изменений?')) return
-  ceiling.value = opened
+  draft.save()
   emit('close')
+}
+
+function clearScreen() {
+  clearOpen.value = false
+  runAndFit(draft.clearScreen)
 }
 
 // подсказки показываем при первом открытии
@@ -242,7 +251,7 @@ function closeHints() {
 
 function finish() {
   console.log('measured', measured.value)
-  draft.drawn.value = true
+  draft.save()
   emit('close')
 }
 

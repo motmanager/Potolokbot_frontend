@@ -16,6 +16,16 @@ export function validate(ceiling) {
     walls: [edgeId(a), edgeId(b)]
   })
 
+  // как в Easy Ceiling: размеры с прямыми углами не сошлись, эти стены нарисованы без своего замера
+  const mismatch = walls.filter((wall) => wall.mismatch)
+  if (mismatch.length) {
+    const names = mismatch.map((wall) => `${wall.from}${wall.to}`).join(' и ')
+    errors.push({
+      message: `Размеры не сходятся, стены ${names} нарисованы не по замеру. Проверьте замеры или введите диагонали`,
+      walls: []
+    })
+  }
+
   for (let i = 0; i < n; i++) {
     if (calcDistance(corners[i], corners[(i + 1) % n]) < MIN_LENGTH - TOLERANCE) {
       errors.push({

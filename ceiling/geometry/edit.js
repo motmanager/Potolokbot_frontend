@@ -94,6 +94,10 @@ function scaleSketch(ceiling, ratio) {
 }
 
 // ====== Изменение длины стены ======
+function applySolved(ceiling, solved) {
+  return { ...ceiling, corners: solved.corners, walls: buildWalls(solved.corners, ceiling.walls, solved.mismatch) }
+}
+
 // остальные размеры сохраняем, меняются только углы
 export function setWallLength(ceiling, wallId, length) {
   const { walls } = ceiling
@@ -110,7 +114,7 @@ export function setWallLength(ceiling, wallId, length) {
 
   const solved = solve(updated)
   console.log('fixed', updated.walls.filter((item) => item.fixed))
-  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
+  if (solved) return { ceiling: applySolved(updated, solved), error: '' }
   return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }
 }
 
@@ -140,7 +144,7 @@ export function setDiagonal(ceiling, from, to, length) {
     return { ceiling: scaleSketch(updated, length / calcDistance(corner(from), corner(to))), error: '' }
   }
   const solved = solve(updated)
-  if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
+  if (solved) return { ceiling: applySolved(updated, solved), error: '' }
   const side = shorterSide(ceiling, from, to)
   const limit = side.reduce((total, wall) => total + wall.length, 0)
   console.log('limit', limit)

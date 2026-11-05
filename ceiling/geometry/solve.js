@@ -1,8 +1,16 @@
+import { edgeId } from './measure.js'
+
 // ====== Определение констант ======
 const ITERATIONS = 100
 const ACCURACY = 0.01
-// поворот стены дороже, чем изменение длины неизмеренной стены: сначала меняются они
+// изменить угол дороже, чем длину неизмеренной стены: сначала меняются они
 const ANGLE_WEIGHT = 20
+// прямой угол почти не меняется, как в Easy Ceiling
+const RIGHT_WEIGHT = 10000
+// небольшое притяжение к наброску, чтобы чертёж не поворачивался целиком
+const ROTATION_WEIGHT = 0.01
+// прямой угол отклонился больше - размеры с прямыми углами не сходятся
+const RIGHT_ANGLE_ACCURACY = 0.5 * Math.PI / 180
 // почти прямой угол считаем прямым, как Easy Ceiling
 const RIGHT_ANGLE_TOLERANCE = 25 * Math.PI / 180
 // стена короче этого на наброске не задаёт направление: её углы почти в одной точке
@@ -56,7 +64,7 @@ function sketchDirections(corners, walls) {
   for (let i = 1; i < n; i++) relative.push(relative[i - 1] + fixed[i])
   const longest = walls.reduce((best, wall, i) => (wall.length > walls[best].length ? i : best), 0)
   const shift = direction(corners, longest) - relative[longest]
-  return relative.map((value) => value + shift)
+  return { directions: relative.map((value) => value + shift), right }
 }
 
 // ====== Линейная алгебра ======
@@ -78,22 +86,38 @@ function solveLinear(matrix, values) {
   return a.map((row, i) => row[m] / row[i])
 }
 
-// ====== Построение по размерам ======
+// обратная матрица для симметричной матрицы весов
+function invert(matrix) {
+  return matrix.map((_, k) => solveLinear(matrix, matrix.map((__, i) => (i === k ? 1 : 0))))
+}
+
+// ====== Подбор формы ======
 // форма, которая меньше всего отличается от наброска:
-// введённые стены и диагонали точно, углы наброска по возможности, неизмеренные стены уступают первыми
-// null - если размеры не сходятся. Пересечение стен не мешает, как в Easy Ceiling: ошибка видна на чертеже
-export function solve(ceiling) {
+// введённые стены и диагонали точно, прямые углы почти жёстко, остальные углы наброска по возможности,
+// длины стен из loose уступают первыми. null - если подобрать не вышло
+function fit(ceiling, sketch, loose) {
   const { corners, walls, diagonals } = ceiling
   const n = corners.length
   const index = new Map(corners.map((corner, i) => [corner.id, i]))
 
-  // неизвестные: направление каждой стены и длина каждой неизмеренной стены (в долях от наброска)
-  const free = walls.map((wall, i) => (wall.fixed ? -1 : i)).filter((i) => i !== -1)
-  const slot = new Map(free.map((wall, k) => [wall, n + k]))
-  const target = [...sketchDirections(corners, walls), ...free.map(() => 1)]
-  const weight = target.map((_, k) => (k < n ? ANGLE_WEIGHT : 1))
+  // неизвестные: направление каждой стены и длина каждой стены из loose (в долях от текущей)
+  const slot = new Map(loose.map((wall, k) => [wall, n + k]))
+  const target = [...sketch.directions, ...loose.map(() => 1)]
   const x = [...target]
   const length = (i) => (slot.has(i) ? walls[i].length * x[slot.get(i)] : walls[i].length)
+
+  // цена отклонения: на каждом углу разница направлений соседних стен, у длин - сама длина
+  const cost = target.map((_, i) => target.map((__, k) => (i === k ? (i < n ? ROTATION_WEIGHT : 1) : 0)))
+  for (let i = 0; i < n; i++) {
+    const prev = (i + n - 1) % n
+    const weight = sketch.right[i] ? RIGHT_WEIGHT : ANGLE_WEIGHT
+    cost[i][i] += weight
+    cost[prev][prev] += weight
+    cost[i][prev] -= weight
+    cost[prev][i] -= weight
+  }
+  const inverse = invert(cost)
+  if (inverse.some((row) => !row)) return null
 
   // ограничения: контур замкнут и введённые диагонали нужной длины
   const spans = [[0, n, 0], ...diagonals.map((diagonal) => {
@@ -132,7 +156,7 @@ export function solve(ceiling) {
     const before = Math.max(...values.map(Math.abs))
     if (before < ACCURACY) break
     // ближайшая к наброску точка, где ограничения выполнены (в линейном приближении)
-    const scaled = rows.map((row) => row.map((value, k) => value / weight[k]))
+    const scaled = rows.map((row) => inverse.map((column) => column.reduce((sum, value, k) => sum + value * row[k], 0)))
     const matrix = rows.map((row) => scaled.map((other) => other.reduce((sum, value, k) => sum + value * row[k], 0)))
     const right = rows.map((row, r) => -values[r] - row.reduce((sum, value, k) => sum + value * (target[k] - x[k]), 0))
     const mu = solveLinear(matrix, right)
@@ -145,10 +169,12 @@ export function solve(ceiling) {
       if (error() < before) break
     }
   }
-
-  console.log('solve', error())
-  // отрицательная длина - стены перекрестились, это покажет проверка чертежа
   if (error() >= ACCURACY) return null
+
+  // насколько ушли прямые углы
+  const turn = (values, i) => values[i] - values[(i + n - 1) % n]
+  const drift = Math.max(0, ...corners.map((_, i) =>
+    (sketch.right[i] ? Math.abs(normalize(turn(x, i) - turn(target, i))) : 0)))
 
   // углы по порядку от первого
   const solved = [{ ...corners[0] }]
@@ -156,5 +182,34 @@ export function solve(ceiling) {
     const last = solved[i]
     solved.push({ ...corners[i + 1], x: last.x + length(i) * Math.cos(x[i]), y: last.y + length(i) * Math.sin(x[i]) })
   }
-  return solved
+  return { corners: solved, drift }
+}
+
+// ====== Построение по размерам ======
+// { corners, mismatch } или null, если размеры не сходятся.
+// Пересечение стен не мешает, как в Easy Ceiling: ошибка видна на чертеже.
+// Без диагоналей прямые углы остаются прямыми: если размеры с ними не сходятся,
+// контур замыкают две стены у одного угла, они в mismatch (рисуются без своего замера, как в Easy Ceiling)
+export function solve(ceiling) {
+  const { corners, walls, diagonals } = ceiling
+  const n = corners.length
+  const sketch = sketchDirections(corners, walls)
+  const free = walls.map((wall, i) => (wall.fixed ? -1 : i)).filter((i) => i !== -1)
+
+  const result = fit(ceiling, sketch, free)
+  console.log('solve', result && result.drift)
+  // диагонали задают настоящие углы: им можно менять и прямые
+  if (diagonals.length) return result && { corners: result.corners, mismatch: [] }
+  if (result && result.drift < RIGHT_ANGLE_ACCURACY) return { corners: result.corners, mismatch: [] }
+
+  // как в Easy Ceiling сначала пробуем стены у угла A, потом у следующих углов
+  for (let k = 0; k < n; k++) {
+    const pair = [(k + n - 1) % n, k]
+    const closing = fit(ceiling, sketch, [...new Set([...free, ...pair])])
+    if (!closing || closing.drift >= RIGHT_ANGLE_ACCURACY) continue
+    const mismatch = pair.filter((i) => walls[i].fixed).map((i) => edgeId(walls[i]))
+    console.log('mismatch', mismatch)
+    return { corners: closing.corners, mismatch }
+  }
+  return result && { corners: result.corners, mismatch: [] }
 }

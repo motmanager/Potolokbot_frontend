@@ -85,6 +85,7 @@ const COLORS = {
   wall: css.getPropertyValue('--main-color'),
   selected: css.getPropertyValue('--accent-color'),
   error: css.getPropertyValue('--error-color'),
+  warning: css.getPropertyValue('--warning-color'),
   preview: css.getPropertyValue('--disabled-color'),
   corner: css.getPropertyValue('--accent-color'),
   label: css.getPropertyValue('--card-color')
@@ -136,9 +137,13 @@ const fillConfig = computed(() => ({
   listening: false
 }))
 
+// стены, которые не сошлись с остальными размерами
+const mismatchWalls = computed(() => props.ceiling.walls.filter((wall) => wall.mismatch).map(edgeId))
+
 function edgeColor(id) {
   if (id === props.selected) return COLORS.selected
-  return props.errorWalls.includes(id) ? COLORS.error : COLORS.wall
+  if (props.errorWalls.includes(id)) return COLORS.error
+  return mismatchWalls.value.includes(id) ? COLORS.warning : COLORS.wall
 }
 
 // концы выбранной стены или выбранный угол
@@ -149,7 +154,7 @@ function pointOf(id) {
   return points.value[props.ceiling.corners.findIndex((corner) => corner.id === id)]
 }
 
-// стены: введённые сплошные, остальные пунктиром
+// стены: введённые сплошные, остальные пунктиром, несошедшиеся жёлтым пунктиром
 const wallLines = computed(() => props.ceiling.walls.map((wall, i) => {
   const id = edgeId(wall)
   const a = points.value[i]
@@ -160,7 +165,7 @@ const wallLines = computed(() => props.ceiling.walls.map((wall, i) => {
       points: [a.x, a.y, b.x, b.y],
       stroke: edgeColor(id),
       strokeWidth: id === props.selected ? 3.5 : 2.5,
-      dash: wall.fixed ? [] : DASH,
+      dash: wall.fixed && !wall.mismatch ? [] : DASH,
       hitStrokeWidth: 24
     }
   }
