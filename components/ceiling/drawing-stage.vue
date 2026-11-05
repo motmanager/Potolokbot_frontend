@@ -184,7 +184,8 @@ function edgeLabel(edge) {
   const b = pointOf(edge.to)
   // без замера подписи нет: размер по наброску условный, стена и так пунктиром
   if (!edge.fixed && !edge.entered) return null
-  const text = `${formatNumber(roundLength(edge.length))} см`
+  // как в Easy Ceiling только число: так подписаны и короткие стены
+  const text = formatNumber(roundLength(edge.length))
   // на телефоне подпись без рамки и отступов, чтобы меньше закрывала чертёж
   const compact = window.innerWidth < BP_PC
   const width = compact ? text.length * 8.5 + 4 : text.length * 9 + 16

@@ -72,7 +72,7 @@ const props = defineProps({
   edges: { type: Array, default: () => [] },
   selected: { type: String, default: '' }
 })
-const emit = defineEmits(['apply', 'close', 'select'])
+const emit = defineEmits(['apply', 'skip', 'close', 'select'])
 
 const input = ref(null)
 const list = ref(null)
@@ -118,8 +118,10 @@ function press(key) {
   text.value = current + (key === ',' && !current ? '0,' : key)
 }
 
+// пустое поле - пропускаем, как в Easy Ceiling: например, диагональ без замера
 function submit() {
-  emit('apply', parseNumber(text.value))
+  if (!text.value) emit('skip')
+  else emit('apply', parseNumber(text.value))
 }
 
 // ====== Лента стен ======

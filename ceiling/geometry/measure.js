@@ -5,7 +5,8 @@ import { segmentsIntersect } from '../../utils/segmentsIntersect.js'
 // размеры в см
 
 // ====== Определение констант ======
-export const MIN_LENGTH = 5
+// как в Easy Ceiling, принимаем даже несколько сантиметров
+export const MIN_LENGTH = 1
 export const MAX_LENGTH = 10000
 // как в Easy Ceiling, комната может быть треугольной
 export const MIN_CORNERS = 3

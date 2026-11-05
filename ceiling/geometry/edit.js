@@ -108,7 +108,7 @@ export function setWallLength(ceiling, wallId, length) {
   const updated = { ...ceiling, walls: walls.map((item, i) => (i === index ? { ...item, length, fixed: true } : item)) }
   if (isSketch(ceiling)) return { ceiling: scaleSketch(updated, length / wall.length), error: '' }
 
-  const solved = solve(updated, true)
+  const solved = solve(updated)
   console.log('fixed', updated.walls.filter((item) => item.fixed))
   if (solved) return { ceiling: { ...updated, corners: solved, walls: buildWalls(solved, updated.walls) }, error: '' }
   return { ceiling, error: `Стену ${name} нельзя сделать длиной ${length} см: размеры не сходятся` }

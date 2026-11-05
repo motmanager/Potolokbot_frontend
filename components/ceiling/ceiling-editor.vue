@@ -40,6 +40,7 @@
         :edges="edgeList"
         :selected="selected"
         @apply="applyLength"
+        @skip="goNext"
         @select="selectEdge"
         @close="selectEdge('')"
       />
@@ -207,13 +208,17 @@ function applyLength(length) {
   const isDiagonal = diagonalList.value.some((item) => edgeId(item) === selected.value)
   inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
   if (inputError.value) return
-  // после стрелки переходим к следующей стене, после последней закрываем поле
   const current = selected.value
+  runAndFit(() => {})
+  goNext(current)
+}
+
+// после «Следующего шага» переходим к следующей стене, после последней закрываем поле
+function goNext(current = selected.value) {
   const ids = edgeList.value.map((item) => item.id)
   const index = ids.indexOf(current)
   const next = index === -1 ? '' : ids[index + 1] || ''
   console.log('next', next)
-  runAndFit(() => {})
   selectEdge(next)
 }
 
