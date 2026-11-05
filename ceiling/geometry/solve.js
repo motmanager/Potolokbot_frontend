@@ -198,7 +198,7 @@ function fit(ceiling, sketch, loose) {
 // Если такой комнаты быть не может (например, стена длиннее всех остальных вместе)
 // или почти прямой угол пришлось бы повернуть сильнее RIGHT_ANGLE_TOLERANCE,
 // контур замыкают две стены у одного угла, они в mismatch (рисуются без своего замера, как в Easy Ceiling)
-export function solve(ceiling) {
+function solveShape(ceiling) {
   const { corners, walls, diagonals } = ceiling
   const n = corners.length
   const sketch = sketchDirections(corners, walls)
@@ -225,4 +225,40 @@ export function solve(ceiling) {
   console.log('mismatch', closest && closest.mismatch)
   // прямых углов не удержать никак - тогда лучше наклонённые углы, чем жёлтые стены
   return result ? { corners: result.corners, mismatch: [] } : closest
+}
+
+// ====== Положение на холсте ======
+// новая форма поворачивается и сдвигается так, чтобы углы были ближе всего к прежним местам:
+// чертёж не прыгает после ввода размера
+function alignTo(original, solved) {
+  const center = (points) => ({
+    x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+    y: points.reduce((sum, point) => sum + point.y, 0) / points.length
+  })
+  const from = center(solved)
+  const to = center(original)
+  let dot = 0
+  let cross = 0
+  solved.forEach((point, i) => {
+    const ax = point.x - from.x
+    const ay = point.y - from.y
+    const bx = original[i].x - to.x
+    const by = original[i].y - to.y
+    dot += ax * bx + ay * by
+    cross += ax * by - ay * bx
+  })
+  const angle = Math.atan2(cross, dot)
+  console.log('align', angle * 180 / Math.PI)
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  return solved.map((point) => {
+    const x = point.x - from.x
+    const y = point.y - from.y
+    return { ...point, x: to.x + x * cos - y * sin, y: to.y + x * sin + y * cos }
+  })
+}
+
+export function solve(ceiling) {
+  const solved = solveShape(ceiling)
+  return solved && { ...solved, corners: alignTo(ceiling.corners, solved.corners) }
 }

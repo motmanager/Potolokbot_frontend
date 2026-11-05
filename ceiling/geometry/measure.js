@@ -58,6 +58,20 @@ function isInnerDiagonal(corners, a, b) {
   return isPointInside({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, corners)
 }
 
+// все диагонали внутри комнаты, для справки
+export function innerDiagonals(ceiling) {
+  const { corners } = ceiling
+  const result = []
+  corners.forEach((a, i) => {
+    corners.slice(i + 2).forEach((b) => {
+      // первый и последний углы соединены стеной
+      if (a === corners[0] && b === corners[corners.length - 1]) return
+      if (isInnerDiagonal(corners, a, b)) result.push({ from: a.id, to: b.id, length: calcDistance(a, b), entered: false })
+    })
+  })
+  return result
+}
+
 // нужные диагонали: введённые и самые короткие, которые их не пересекают, всего n - 3
 export function roomDiagonals(ceiling) {
   const { corners, diagonals } = ceiling

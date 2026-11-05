@@ -55,7 +55,7 @@
         ref="stage"
         :ceiling="ceiling"
         :selected="selected"
-        :diagonals="visibleDiagonals"
+        :diagonals="stageDiagonals"
         :error-walls="errorWalls"
         :computed-diagonals="countable"
         @place="onPlace"
@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { MIN_CORNERS, roomDiagonals, edgeId } from '~/ceiling/geometry'
+import { MIN_CORNERS, roomDiagonals, innerDiagonals, edgeId } from '~/ceiling/geometry'
 
 // ====== Определение данных ======
 const HINTS_KEY = 'ceiling-hints-seen'
@@ -115,6 +115,16 @@ const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceilin
 // когда все стены измерены, диагонали видны всегда, как в Easy Ceiling
 const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
   diagonalsOpen.value || countable.value || diagonal.entered || edgeId(diagonal) === selected.value))
+
+// у четырёхугольника, как в Easy Ceiling, видна и вторая диагональ: только для справки, без ввода
+const referenceDiagonals = computed(() => {
+  if (!countable.value || ceiling.value.corners.length !== 4) return []
+  const needed = diagonalList.value.map(edgeId)
+  return innerDiagonals(ceiling.value)
+    .filter((diagonal) => !needed.includes(edgeId(diagonal)))
+    .map((diagonal) => ({ ...diagonal, reference: true }))
+})
+const stageDiagonals = computed(() => [...visibleDiagonals.value, ...referenceDiagonals.value])
 
 const errorWalls = computed(() => errors.value.flatMap((error) => error.walls))
 const selectedCorner = computed(() => ceiling.value.closed && ceiling.value.corners.some((item) => item.id === selected.value))

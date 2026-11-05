@@ -180,6 +180,8 @@ const diagonalLines = computed(() => props.diagonals.map((diagonal) => {
   const b = pointOf(diagonal.to)
   const line = { points: [a.x, a.y, b.x, b.y], hitStrokeWidth: 24 }
   if (diagonal.entered) return { id, config: { ...line, stroke: edgeColor(id), strokeWidth: 1.5 } }
+  // диагональ для справки нельзя выбрать
+  if (diagonal.reference) return { id, config: { ...line, stroke: COLORS.preview, strokeWidth: 2, dash: [6, 5], listening: false } }
   const stroke = id === props.selected ? COLORS.selected : COLORS.preview
   return { id, config: { ...line, stroke, strokeWidth: 2, dash: [6, 5] } }
 }))
@@ -209,7 +211,7 @@ function edgeLabel(edge) {
   const rotation = angle > 90 ? angle - 180 : angle < -90 ? angle + 180 : angle
   return {
     id,
-    group: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, offsetX: width / 2, offsetY: height / 2, rotation },
+    group: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, offsetX: width / 2, offsetY: height / 2, rotation, listening: !edge.reference },
     rect: { width, height, cornerRadius: compact ? 4 : 8, fill: COLORS.label, stroke: color, strokeWidth: compact ? 0 : 1 },
     text: {
       width,
