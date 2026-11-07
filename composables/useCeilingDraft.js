@@ -12,7 +12,8 @@ function summaryOf(ceiling) {
 function missingDiagonalsOf(ceiling) {
   if (!ceiling.closed) return 0
   if (ceiling.fromSizes && isRectangle(ceiling.corners)) return 0
-  return Math.max(ceiling.corners.length - 3 - ceiling.diagonals.length, 0)
+  const structural = ceiling.diagonals.filter((diagonal) => !diagonal.control).length
+  return Math.max(ceiling.corners.length - 3 - structural, 0)
 }
 
 // все стены измерены: до этого размеры по наброску условные, площадь не показываем
@@ -128,6 +129,12 @@ export function useCeilingDraft() {
     return result.error
   }
 
+  function setControlDiagonal(from, to, length) {
+    const result = geometry.setControlDiagonal(ceiling.value, from, to, length)
+    commit(result.ceiling)
+    return result.error
+  }
+
   function setDiagonal(from, to, length) {
     const result = geometry.setDiagonal(ceiling.value, from, to, length)
     commit(result.ceiling)
@@ -177,6 +184,7 @@ export function useCeilingDraft() {
     endMove,
     setWallLength,
     setDiagonal,
+    setControlDiagonal,
     undo,
     clearScreen,
     reset

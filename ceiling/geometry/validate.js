@@ -1,9 +1,13 @@
 import { orient, segmentsIntersect } from '../../utils/segmentsIntersect.js'
 import { calcDistance } from '../../utils/calcDistance.js'
+import { formatNumber } from '../../utils/formatNumber.js'
+import { roundLength } from '../../utils/roundLength.js'
 import { MIN_LENGTH, edgeId } from './measure.js'
 
 // запас на погрешность подбора углов
 const TOLERANCE = 0.01
+// контрольная диагональ сходится с чертежом, если разница не больше, см
+const CONTROL_TOLERANCE = 1
 
 // проверка контура
 export function validate(ceiling) {
@@ -24,6 +28,20 @@ export function validate(ceiling) {
     errors.push({
       message: `Размеры не сходятся, ${text} не по замеру. Проверьте замеры`,
       walls: []
+    })
+  }
+
+  // контрольная диагональ: сверяем с формой, только когда форма уже точная
+  const structural = ceiling.diagonals.filter((diagonal) => !diagonal.control).length
+  if (walls.every((wall) => wall.fixed) && structural >= n - 3) {
+    ceiling.diagonals.filter((diagonal) => diagonal.control).forEach((diagonal) => {
+      const corner = (id) => corners.find((item) => item.id === id)
+      const real = calcDistance(corner(diagonal.from), corner(diagonal.to))
+      if (Math.abs(real - diagonal.length) <= CONTROL_TOLERANCE) return
+      errors.push({
+        message: `Диагональ ${diagonal.from}${diagonal.to} по замеру ${formatNumber(diagonal.length)} см, а по остальным размерам выходит ${formatNumber(roundLength(real))} см. Проверьте замеры`,
+        walls: [edgeId(diagonal)]
+      })
     })
   }
 

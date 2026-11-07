@@ -116,13 +116,20 @@ const diagonalList = computed(() => (ceiling.value.closed ? roomDiagonals(ceilin
 const visibleDiagonals = computed(() => diagonalList.value.filter((diagonal) =>
   diagonalsOpen.value || countable.value || diagonal.entered || edgeId(diagonal) === selected.value))
 
-// у четырёхугольника, как в Easy Ceiling, видна и вторая диагональ: только для справки, без ввода
+// у четырёхугольника, как в Easy Ceiling, видна и вторая диагональ.
+// Её можно ввести для проверки: форму она не меняет, расхождение покажет проверка
 const referenceDiagonals = computed(() => {
-  if (!countable.value || ceiling.value.corners.length !== 4) return []
+  const { closed, corners, diagonals } = ceiling.value
+  if (!closed || corners.length !== 4) return []
   const needed = diagonalList.value.map(edgeId)
-  return innerDiagonals(ceiling.value)
-    .filter((diagonal) => !needed.includes(edgeId(diagonal)))
+  const controls = diagonals.filter((diagonal) => diagonal.control)
+  const entered = controls.map((diagonal) => ({ ...diagonal, entered: true, reference: true }))
+  // невведённую показываем с рассчитанной длиной, когда все стены измерены
+  const calculated = countable.value ? innerDiagonals(ceiling.value) : []
+  const rest = calculated
+    .filter((diagonal) => !needed.includes(edgeId(diagonal)) && !controls.some((item) => edgeId(item) === edgeId(diagonal)))
     .map((diagonal) => ({ ...diagonal, reference: true }))
+  return [...entered, ...rest]
 })
 const stageDiagonals = computed(() => [...visibleDiagonals.value, ...referenceDiagonals.value])
 
@@ -135,13 +142,16 @@ const edge = computed(() => {
   if (wall) return { ...wall, title: `Стена ${wall.from}${wall.to}`, measured: wall.fixed }
   const diagonal = diagonalList.value.find((item) => edgeId(item) === selected.value)
   if (diagonal) return { ...diagonal, title: `Диагональ ${diagonal.from}${diagonal.to}`, measured: diagonal.entered }
+  const reference = referenceDiagonals.value.find((item) => edgeId(item) === selected.value)
+  if (reference) return { ...reference, title: `Контрольная диагональ ${reference.from}${reference.to}`, measured: reference.entered }
   return null
 })
 
 // стены по порядку, потом диагонали: в таком порядке вводим замеры
 const edgeList = computed(() => [
   ...ceiling.value.walls.map((wall) => ({ ...wall, entered: wall.fixed })),
-  ...diagonalList.value
+  ...diagonalList.value,
+  ...referenceDiagonals.value
 ].map((item) => ({ id: edgeId(item), name: `${item.from}${item.to}`, length: item.length, entered: item.entered })))
 
 // форме с n углами нужно n - 3 диагонали
@@ -222,7 +232,9 @@ function applyLength(length) {
   const { from, to } = edge.value
   console.log('edge', edge.value)
   const isDiagonal = diagonalList.value.some((item) => edgeId(item) === selected.value)
-  inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
+  const isControl = referenceDiagonals.value.some((item) => edgeId(item) === selected.value)
+  if (isControl) inputError.value = draft.setControlDiagonal(from, to, length)
+  else inputError.value = isDiagonal ? draft.setDiagonal(from, to, length) : draft.setWallLength(selected.value, length)
   if (inputError.value) return
   const current = selected.value
   runAndFit(() => {})

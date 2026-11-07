@@ -76,7 +76,8 @@ export function innerDiagonals(ceiling) {
 export function roomDiagonals(ceiling) {
   const { corners, diagonals } = ceiling
   const position = new Map(corners.map((corner) => [corner.id, corner]))
-  const result = diagonals.map((diagonal) => ({ ...diagonal, entered: true }))
+  // контрольные диагонали форму не задают, они только проверяют её
+  const result = diagonals.filter((diagonal) => !diagonal.control).map((diagonal) => ({ ...diagonal, entered: true }))
 
   const crosses = (a, b, diagonal) => {
     const c = position.get(diagonal.from)

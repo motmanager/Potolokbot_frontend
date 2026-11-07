@@ -101,7 +101,12 @@ const NEAR_DISTANCE = 20
 // как $bp-pc в adaptive.sass
 const BP_PC = 1024
 const MIN_SCALE = 0.05
-const MAX_SCALE = 4
+// px на 1 см: даже комната в пару сантиметров вписывается в экран, мелкие ниши видно при увеличении
+const MAX_SCALE = 200
+// где подпись диагонали: доля длины от её начала
+const DIAGONAL_LABEL_PLACE = 0.35
+// место под столбик инструментов справа, чтобы он не закрывал углы
+const TOOLS_SPACE = 84
 // примерный размер кнопки у угла, чтобы она не закрывала угол и не уходила за край
 const ACTION_WIDTH = 150
 const ACTION_HEIGHT = 40
@@ -180,8 +185,6 @@ const diagonalLines = computed(() => props.diagonals.map((diagonal) => {
   const b = pointOf(diagonal.to)
   const line = { points: [a.x, a.y, b.x, b.y], hitStrokeWidth: 24 }
   if (diagonal.entered) return { id, config: { ...line, stroke: edgeColor(id), strokeWidth: 1.5 } }
-  // диагональ для справки нельзя выбрать
-  if (diagonal.reference) return { id, config: { ...line, stroke: COLORS.preview, strokeWidth: 2, dash: [6, 5], listening: false } }
   const stroke = id === props.selected ? COLORS.selected : COLORS.preview
   return { id, config: { ...line, stroke, strokeWidth: 2, dash: [6, 5] } }
 }))
@@ -206,12 +209,14 @@ function edgeLabel(edge) {
   if (length < width + 16 && id !== props.selected) return null
   const entered = edge.fixed || edge.entered || id === props.selected
   const color = entered ? edgeColor(id) : COLORS.preview
+  // подпись диагонали ближе к её началу: у пересекающихся диагоналей подписи не накладываются
+  const place = 'entered' in edge ? DIAGONAL_LABEL_PLACE : 0.5
   // текст не переворачивается вверх ногами
   const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI
   const rotation = angle > 90 ? angle - 180 : angle < -90 ? angle + 180 : angle
   return {
     id,
-    group: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, offsetX: width / 2, offsetY: height / 2, rotation, listening: !edge.reference },
+    group: { x: a.x + (b.x - a.x) * place, y: a.y + (b.y - a.y) * place, offsetX: width / 2, offsetY: height / 2, rotation },
     rect: { width, height, cornerRadius: compact ? 4 : 8, fill: COLORS.label, stroke: color, strokeWidth: compact ? 0 : 1 },
     text: {
       width,
@@ -354,14 +359,15 @@ function fit() {
   // на низком холсте (открыта клавиатура) отступы меньше, чтобы чертёж не мельчал
   const padding = Math.min(56, stageHeight / 8)
   const bottom = Math.min(72, stageHeight / 6)
-  const width = Math.max(stageWidth - padding * 2, 40)
+  const right = Math.max(padding, TOOLS_SPACE)
+  const width = Math.max(stageWidth - padding - right, 40)
   const height = Math.max(stageHeight - padding - bottom, 40)
 
   // масштаб и положение
   const scale = Math.min(width / Math.max(maxX - minX, 1), height / Math.max(maxY - minY, 1), MAX_SCALE)
   view.value = {
     scale,
-    x: stageWidth / 2 - (minX + maxX) / 2 * scale,
+    x: padding + width / 2 - (minX + maxX) / 2 * scale,
     y: padding + height / 2 - (minY + maxY) / 2 * scale
   }
 }

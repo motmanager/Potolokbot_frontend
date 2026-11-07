@@ -264,6 +264,7 @@ function alignTo(original, solved) {
 }
 
 export function solve(ceiling) {
-  const solved = solveShape(ceiling)
+  // контрольные диагонали форму не меняют, их сверяет validate
+  const solved = solveShape({ ...ceiling, diagonals: ceiling.diagonals.filter((diagonal) => !diagonal.control) })
   return solved && { ...solved, corners: alignTo(ceiling.corners, solved.corners) }
 }

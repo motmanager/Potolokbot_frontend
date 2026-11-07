@@ -130,6 +130,17 @@ function shorterSide(ceiling, from, to) {
   return sum(sides[0]) < sum(sides[1]) ? sides[0] : sides[1]
 }
 
+// контрольная диагональ: форму не меняет, расхождение с чертежом покажет проверка
+export function setControlDiagonal(ceiling, from, to, length) {
+  const name = `${from}${to}`
+  if (isNaN(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
+    return { ceiling, error: `Диагональ ${name}: укажите размер от ${MIN_LENGTH} до ${MAX_LENGTH} см` }
+  }
+  const others = ceiling.diagonals.filter((diagonal) => diagonal.from !== from || diagonal.to !== to)
+  console.log('control', name, length)
+  return { ceiling: { ...ceiling, diagonals: [...others, { from, to, length, control: true }] }, error: '' }
+}
+
 export function setDiagonal(ceiling, from, to, length) {
   const name = `${from}${to}`
   if (isNaN(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
